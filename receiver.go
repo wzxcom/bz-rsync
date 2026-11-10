@@ -321,10 +321,15 @@ func (r *receiver) start(c command) (result, error) {
 	if present, err := r.publishedExists(c.Day); err != nil {
 		return result{}, err
 	} else if present {
+		started := time.Now()
 		if err := r.verifyExisting(c.Day, c.Manifest, c.Content); err != nil {
 			return result{}, fmt.Errorf("目标日期已有数据，校验不匹配或目录冲突：%w", err)
 		}
-		if c.Scheduled && c.RequestID == "" {
+		if c.RequestID != "" {
+			if err := r.recordManualReview(c, time.Since(started)); err != nil {
+				return result{}, fmt.Errorf("无法记录手动复核结果：%w", err)
+			}
+		} else if c.Scheduled {
 			if err := r.recordScheduledConfirmation(c); err != nil {
 				log.Printf("批次 %s 定时复核记录保存失败 · %v", c.Day, err)
 			}

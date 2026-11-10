@@ -13,14 +13,20 @@ import (
 )
 
 type manualSync struct {
-	ID          string    `json:"id"`
-	Day         string    `json:"day"`
-	Status      string    `json:"status"`
-	Error       string    `json:"error,omitempty"`
-	ResumeID    string    `json:"resume_id,omitempty"`
-	Manifest    string    `json:"manifest_sha256,omitempty"`
-	RequestedAt time.Time `json:"requested_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string        `json:"id"`
+	Day         string        `json:"day"`
+	Status      string        `json:"status"`
+	Error       string        `json:"error,omitempty"`
+	ResumeID    string        `json:"resume_id,omitempty"`
+	Manifest    string        `json:"manifest_sha256,omitempty"`
+	RequestedAt time.Time     `json:"requested_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	Review      *manualReview `json:"review,omitempty"`
+}
+
+type manualReview struct {
+	Sizes   archiveBreakdown `json:"sizes"`
+	Elapsed time.Duration    `json:"elapsed_ns"`
 }
 
 func (r *receiver) loadManual() error {
@@ -122,13 +128,34 @@ func (r *receiver) claimManual() (result, error) {
 	return result{OK: true, Manual: r.manual}, nil
 }
 
+func (r *receiver) recordManualReview(c command, elapsed time.Duration) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.manual == nil || r.manual.ID != c.RequestID || r.manual.Day != c.Day || r.manual.Status != "running" {
+		return nil
+	}
+	sizes, err := r.archivedBreakdown(c.Day)
+	if err != nil {
+		return err
+	}
+	next := *r.manual
+	next.Review = &manualReview{Sizes: sizes, Elapsed: elapsed}
+	return r.saveManual(next)
+}
+
 func (r *receiver) reportManual(c command) (result, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.manual != nil && r.manual.ID == c.RequestID && (r.manual.Status == "paused" || r.manual.Status == "cancelled") {
 		return result{OK: true}, nil
 	}
-	if r.manual == nil || r.manual.ID != c.RequestID || r.manual.Status != "running" || c.ConfigOK == nil {
+	if r.manual == nil || r.manual.ID != c.RequestID || c.ConfigOK == nil {
+		return result{}, fmt.Errorf("手动同步请求不存在或已完成")
+	}
+	if (r.manual.Status == "success" && *c.ConfigOK) || (r.manual.Status == "failed" && !*c.ConfigOK) {
+		return result{OK: true}, nil
+	}
+	if r.manual.Status != "running" {
 		return result{}, fmt.Errorf("手动同步请求不存在或已完成")
 	}
 	next := *r.manual
@@ -141,5 +168,9 @@ func (r *receiver) reportManual(c command) (result, error) {
 			next.Error = "宝塔发送端未能完成该日期的同步"
 		}
 	}
-	return result{OK: true}, r.saveManual(next)
+	if err := r.saveManual(next); err != nil {
+		return result{}, err
+	}
+	r.queueManualResult(next)
+	return result{OK: true}, nil
 }

@@ -8,7 +8,7 @@ bz-rsync 把宝塔面板生成的网站和数据库备份通过 rsync 和 SSH �
 
 ## 1. 用 Docker Compose 部署 NAS 接收端
 
-在 Linux NAS 上安装 Docker 和支持 `docker compose` 命令的 Compose。`v1.0.1` 的镜像地址是 `wzxsoft/bz-rsync:v1.0.1`，面向 Linux `amd64` 和 `arm64`。
+在 Linux NAS 上安装 Docker 和支持 `docker compose` 命令的 Compose。`v1.0.2` 的镜像地址是 `wzxsoft/bz-rsync:v1.0.2`，面向 Linux `amd64` 和 `arm64`。
 
 将下面两个文件放到 NAS 的同一个项目目录。用 `.env.example` 创建 `.env`，预先建立独立备份目录，并给指定的 UID、GID 写入权限。下面以 `/srv/bz-rsync/backups` 为例，请换成 NAS 的实际共享目录路径。[Compose 文件](compose.yaml) · [环境变量示例](.env.example)
 
@@ -19,7 +19,7 @@ sudo install -d -m 0750 -o 10001 -g 10001 /srv/bz-rsync/backups
 
 | .env 设置 | 说明 |
 | --- | --- |
-| `BZ_IMAGE` | 正式版使用 `wzxsoft/bz-rsync:v1.0.1`。从源码构建时可填写本地镜像标签。 |
+| `BZ_IMAGE` | 正式版使用 `wzxsoft/bz-rsync:v1.0.2`。从源码构建时可填写本地镜像标签。 |
 | `BZ_BACKUP_PATH` | NAS 已存在的专用备份目录，例如 `/srv/bz-rsync/backups`。 |
 | `BZ_STORAGE_UID`、`BZ_STORAGE_GID` | 接收端使用的文件账号，示例为 `10001`、`10001`。按目录实际写入权限调整。 |
 | `BZ_WEB_BIND`、`BZ_WEB_PORT` | Web 管理入口。示例使用 `0.0.0.0` 和 `8080`，请在受信任的局域网或 VPN 内访问。也可填写具体的 NAS 网络地址或 `127.0.0.1`。 |
@@ -82,6 +82,8 @@ outbox 模式可运行 `python3 /opt/bz-rsync-sender/bz-rsync-send.py run 2026-0
 在「连接设置」填写 Telegram Bot Token 和接收会话的数字 Chat ID，启用并保存后可发送测试消息。群组和频道也可接收通知，公开频道可填写 `@用户名`。备份完成通知包含批次日期、结果、任务耗时和批次总大小。成功归档时，还会分别列出网站和数据库归档大小，三项大小均以 GB 显示。定时发送使用 `--scheduled`，已入库的相同批次复核通过后也可记录并发送通知。
 
 「允许在 Telegram 手动同步」默认关闭。要启用，先开启通知，填写与 Bot 私聊的正数 Chat ID，再勾选此项并保存。为此功能使用专用 Bot，确保同一 Bot 没有其他轮询服务或 Webhook。已开始对话的私聊会收到常驻「手动同步」按钮，并可从输入框旁的 Telegram 菜单选择命令。首次使用 Bot 时点 Telegram 的「开始」即可建立私聊。命令和按钮都将北京时间当天的批次提交到与网页手动同步共用的队列。[Telegram Bot 菜单](https://core.telegram.org/bots/features#menu-button)
+
+手动请求复核已入库批次成功后，Telegram 推送会列出批次总大小、网站归档大小、数据库归档大小和 NAS 的实际复核耗时。通过网页或 Telegram 提交的手动请求都使用此通知。若发送端在传输前失败，也会发送手动同步失败通知。
 
 ## 从源码构建
 

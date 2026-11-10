@@ -86,8 +86,9 @@ func (r *receiver) verifyExisting(day, rawDigest, contentDigest string) error {
 }
 
 type archiveBreakdown struct {
-	SiteBytes     int64
-	DatabaseBytes int64
+	SiteBytes     int64 `json:"site_bytes"`
+	DatabaseBytes int64 `json:"database_bytes"`
+	TotalBytes    int64 `json:"total_bytes"`
 }
 
 // archivedBreakdown reads only published manifest metadata and archive sizes.
@@ -124,7 +125,12 @@ func (r *receiver) archivedBreakdown(day string) (archiveBreakdown, error) {
 	if err != nil {
 		return archiveBreakdown{}, err
 	}
-	return archiveBreakdown{SiteBytes: siteBytes, DatabaseBytes: databaseBytes}, nil
+	manifestBytes := int64(len(files))
+	if siteBytes > (1<<63-1)-databaseBytes-manifestBytes {
+		return archiveBreakdown{}, fmt.Errorf("归档批次大小超出支持范围")
+	}
+	return archiveBreakdown{SiteBytes: siteBytes, DatabaseBytes: databaseBytes,
+		TotalBytes: siteBytes + databaseBytes + manifestBytes}, nil
 }
 
 func (r *receiver) matchesPublished(day, digest string) bool {

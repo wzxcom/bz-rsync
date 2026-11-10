@@ -42,7 +42,8 @@ func TestArchivedBreakdownInBothLayouts(t *testing.T) {
 				r.paths.Current = archivePaths{"new-site", "new-database"}
 			}
 			got, err := r.archivedBreakdown(day)
-			want := archiveBreakdown{SiteBytes: int64(len("site") + len(otherSite)), DatabaseBytes: int64(len("database"))}
+			want := archiveBreakdown{SiteBytes: int64(len("site") + len(otherSite)), DatabaseBytes: int64(len("database")),
+				TotalBytes: int64(len("site") + len(otherSite) + len("database") + len(data))}
 			if err != nil || got != want {
 				t.Fatalf("incorrect breakdown: %+v, %v", got, err)
 			}

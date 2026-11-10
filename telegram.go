@@ -368,6 +368,39 @@ func (r *receiver) finishRun(job *run, status, line string) {
 	r.telegramPending = append(r.telegramPending, telegramNotice{settings: r.telegram, message: message, day: day, kind: "同步失败"})
 }
 
+// queueManualResult handles outcomes that do not already have a transfer notification.
+func (r *receiver) queueManualResult(request manualSync) {
+	if !r.telegram.Enabled {
+		return
+	}
+	hasRun, transferred := false, false
+	for _, job := range r.runs {
+		if job.RequestID == request.ID {
+			hasRun = true
+			transferred = transferred || job.Status == "success"
+		}
+	}
+	message := telegramMessage{day: request.Day}
+	var kind string
+	switch {
+	case request.Status == "success" && request.Review != nil && !transferred:
+		review := request.Review
+		kind = "手动复核"
+		message.title = "✅ bz-rsync · 手动复核成功"
+		message.sizeLabel, message.totalBytes = "批次大小", review.Sizes.TotalBytes
+		message.breakdown = review.Sizes
+		message.timeLabel, message.timeValue = "复核耗时", telegramDuration(review.Elapsed)
+		message.detail = "SHA-256 复核通过，批次已入库。"
+	case request.Status == "failed" && !hasRun:
+		kind = "手动同步失败"
+		message.title = "❌ bz-rsync · 手动同步失败"
+		message.detail = "手动同步未完成，请在同步控制台查看原因。"
+	default:
+		return
+	}
+	r.queueTelegram(telegramNotice{settings: r.telegram, message: message, day: request.Day, kind: kind})
+}
+
 func (r *receiver) formatTelegramNotice(notice telegramNotice) string {
 	if notice.kind == "同步成功" || notice.kind == "定时复核" {
 		if breakdown, err := r.archivedBreakdown(notice.day); err == nil {
