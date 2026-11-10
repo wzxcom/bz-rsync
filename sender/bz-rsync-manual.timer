@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for bz-rsync manual requests every 30 seconds
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=30s
+AccuracySec=2s
+Unit=bz-rsync-manual.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+*.tar
+*.tar.gz
+*.zip
+*.exe
+__pycache__/
+*.pyc
+/state/
+/public-release/

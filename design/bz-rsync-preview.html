@@ -1,0 +1,3784 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>bz-rsync · 同步控制台设计预览</title>
+    <style>
+      :root {
+        --blue: #245ce5;
+        --blue2: #4f83ff;
+        --ink: #152641;
+        --muted: #596a83;
+        --line: #e4eaf3;
+        --canvas: #f3f6fb;
+        --pale: #edf3ff;
+        --green: #087955;
+        --amber: #9b6112;
+        --red: #b6334c;
+        --shadow: 0 2px 8px #243b6410;
+        --nav: 228px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.55 "Segoe UI",
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid #88a8fa;
+        outline-offset: 2px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h2 {
+        font-size: 17px;
+      }
+      h3 {
+        font-size: 15px;
+      }
+      .icon {
+        width: 20px;
+        height: 20px;
+        flex: none;
+        display: inline-block;
+        vertical-align: middle;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .small-icon .icon {
+        width: 16px;
+        height: 16px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .mono {
+        font:
+          12px/1.6 ui-monospace,
+          Consolas,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+      }
+      .hide-mobile {
+        display: inline-flex;
+      }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: var(--nav);
+        display: flex;
+        flex-direction: column;
+        background: white;
+        border-right: 1px solid var(--line);
+        padding: 27px 18px 18px;
+        z-index: 2;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin: 0 8px 42px;
+      }
+      .brand-icon {
+        width: 41px;
+        height: 41px;
+        border-radius: 12px;
+        background: linear-gradient(150deg, #4783ff, #2458e5);
+        box-shadow: 0 6px 16px #245ce538;
+        display: grid;
+        place-items: center;
+        color: white;
+      }
+      .brand-icon .icon {
+        width: 25px;
+        height: 25px;
+      }
+      .brand-name {
+        font-size: 20px;
+        font-weight: 760;
+        line-height: 1;
+        letter-spacing: -0.6px;
+      }
+      .brand-sub {
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: 1.5px;
+        margin-top: 6px;
+      }
+      .nav-label {
+        padding: 0 12px 9px;
+        color: #667991;
+        font-size: 11px;
+        letter-spacing: 1.4px;
+        font-weight: 700;
+      }
+      .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        height: 45px;
+        margin-bottom: 5px;
+        padding: 0 12px;
+        border-radius: 9px;
+        color: #50617a;
+        font-weight: 600;
+      }
+      .nav-link:hover {
+        background: #f0f4fb;
+        color: var(--blue);
+      }
+      .nav-link[aria-current="page"] {
+        background: var(--blue);
+        color: white;
+        box-shadow: 0 5px 14px #245ce532;
+      }
+      .nav-link .icon {
+        width: 18px;
+        height: 18px;
+      }
+      .nav-sep {
+        border-top: 1px solid #edf0f6;
+        margin: 16px 9px;
+      }
+      .side-foot {
+        margin-top: auto;
+        text-align: center;
+        border: 1px solid #e7edf8;
+        background: #f7faff;
+        border-radius: 12px;
+        padding: 13px 12px;
+      }
+      .side-foot b {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+      }
+      .side-foot p {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 100%;
+        background: #28a77e;
+        display: inline-block;
+        flex: none;
+      }
+      .app {
+        margin-left: var(--nav);
+        min-height: 100vh;
+      }
+      .topbar {
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 30px;
+        background: #ffffffec;
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        backdrop-filter: blur(12px);
+      }
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      .crumb strong {
+        color: var(--ink);
+      }
+      .crumb .icon {
+        width: 15px;
+        height: 15px;
+      }
+      .top-right {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .pill,
+      .tag {
+        border-radius: 30px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.5;
+        padding: 4px 9px;
+      }
+      .pill {
+        background: #eef3ff;
+        color: #294fbd;
+      }
+      .pill .icon {
+        width: 13px;
+        height: 13px;
+      }
+      .tag {
+        background: #edf3ff;
+        color: #2753c4;
+      }
+      .tag.good {
+        background: #e8f7ef;
+        color: var(--green);
+      }
+      .tag.warn {
+        background: #fff4df;
+        color: var(--amber);
+      }
+      .tag.bad {
+        background: #fff0f2;
+        color: var(--red);
+      }
+      .tag.quiet {
+        background: #eef1f5;
+        color: #536580;
+      }
+      .avatar {
+        width: 31px;
+        height: 31px;
+        border-radius: 10px;
+        border: 1px solid #e1e9f8;
+        background: #eef3ff;
+        display: grid;
+        place-items: center;
+        font-size: 10px;
+        font-weight: 800;
+        color: #2455c4;
+      }
+      .field textarea {
+        display: block;
+        width: 100%;
+        border: 1px solid #d7e1f1;
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 5px;
+        color: var(--ink);
+        background: #fff;
+        min-height: 85px;
+        resize: vertical;
+      }
+      .danger-btn {
+        color: #9e2940;
+      }
+      .api-notice {
+        margin-bottom: 15px;
+        background: #fff4df;
+        color: #75501a;
+        border-color: #f2e3c7;
+      }
+      .auth {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        background: radial-gradient(ellipse at 48% 0, #d7e5ff 0, transparent 55%), var(--canvas);
+      }
+      .auth-card {
+        width: min(100%, 405px);
+        padding: 26px;
+        box-shadow: 0 12px 40px #214e9b13;
+      }
+      .auth-card .brand {
+        margin: 0 0 20px;
+      }
+      .auth-card form {
+        margin-top: 17px;
+      }
+      .auth-card h1 {
+        font-size: 25px;
+      }
+      .form-feedback {
+        font-size: 12px;
+      }
+      .form-feedback.error {
+        color: var(--red);
+      }
+      .auth-demo .hide-mobile {
+        display: none;
+      }
+      .main {
+        max-width: 1680px;
+        margin: auto;
+        padding: 26px 30px 34px;
+      }
+      .hero {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        border: 1px solid #dce7ff;
+        border-radius: 16px;
+        background: linear-gradient(105deg, #fbfdff 8%, #f0f5ff 63%, #e6efff 100%);
+        min-height: 127px;
+        padding: 22px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 17px;
+      }
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 0 45%;
+        z-index: -1;
+        background:
+          linear-gradient(#789bed24 1px, transparent 1px),
+          linear-gradient(90deg, #789bed24 1px, transparent 1px);
+        background-size: 24px 24px;
+        mask-image: linear-gradient(90deg, transparent, black 85%);
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        right: 76px;
+        top: -110px;
+        width: 365px;
+        height: 365px;
+        z-index: -1;
+        border: 1px solid #a4bdf46e;
+        border-radius: 50%;
+        box-shadow:
+          0 0 0 24px #c1d1fb35,
+          0 0 0 50px #c1d1fb26;
+      }
+      .eyebrow {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        color: #2855be;
+        letter-spacing: 1.65px;
+        font-size: 10px;
+        font-weight: 800;
+        margin-bottom: 5px;
+      }
+      .eyebrow::before {
+        content: "";
+        display: inline-block;
+        width: 12px;
+        height: 2px;
+        background: #3971fa;
+        border-radius: 10px;
+      }
+      h1 {
+        font-size: 29px;
+        line-height: 1.25;
+        letter-spacing: -0.6px;
+        margin-bottom: 5px;
+      }
+      .hero p,
+      .page-head p {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .btn {
+        border: 1px solid #dbe4f2;
+        background: white;
+        color: #304563;
+        border-radius: 8px;
+        padding: 7px 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-weight: 650;
+        min-height: 34px;
+        white-space: nowrap;
+      }
+      .btn .icon {
+        width: 16px;
+        height: 16px;
+      }
+      .btn:hover {
+        background: #f2f6ff;
+        border-color: #b6c7ee;
+      }
+      .btn.primary {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+        box-shadow: 0 4px 12px #245ce52b;
+      }
+      .btn.primary:hover {
+        background: #1c4fcf;
+      }
+      .btn.flat {
+        background: transparent;
+        border-color: transparent;
+        color: #295bc6;
+        box-shadow: none;
+        padding: 4px 6px;
+      }
+      .btn.flat:hover {
+        background: #eef4ff;
+      }
+      .btn:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 15px;
+      }
+      .manual-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 11px 18px;
+        margin-bottom: 15px;
+        padding: 12px 16px;
+        scroll-margin-top: 90px;
+      }
+      .manual-card .muted {
+        font-size: 12px;
+      }
+      .manual-status-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px 7px;
+        margin-top: 5px;
+      }
+      .manual-form {
+        display: flex;
+        align-items: end;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .manual-form .btn {
+        min-height: 38px;
+      }
+      .manual-form .form-feedback {
+        flex-basis: 100%;
+      }
+      .run-controls {
+        display: grid;
+        gap: 5px;
+        margin: 0 0 12px;
+      }
+      .run-controls p {
+        font-size: 12px;
+      }
+      .card {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        min-width: 0;
+      }
+      .metric {
+        padding: 14px 15px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      .metric-icon,
+      .node-icon {
+        display: grid;
+        place-items: center;
+        background: #edf3ff;
+        color: #285bd9;
+        border-radius: 10px;
+        width: 36px;
+        height: 36px;
+        flex: none;
+      }
+      .metric-icon.green {
+        background: #e8f7ef;
+        color: #128264;
+      }
+      .metric-icon.aqua {
+        background: #e8f8fa;
+        color: #177d91;
+      }
+      .metric-icon.violet {
+        background: #f1efff;
+        color: #6651c4;
+      }
+      .metric-icon .icon,
+      .node-icon .icon {
+        width: 19px;
+        height: 19px;
+      }
+      .metric-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .metric-value {
+        display: block;
+        font-size: 21px;
+        line-height: 1.25;
+        letter-spacing: -0.35px;
+        margin: 1px 0 3px;
+        white-space: nowrap;
+      }
+      .metric-value span {
+        font-size: 11px;
+        margin-left: 3px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .metric-note {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+        gap: 15px;
+        margin-bottom: 15px;
+        align-items: stretch;
+      }
+      .bottom-split {
+        grid-template-columns: minmax(0, 1.9fr) minmax(260px, 1fr);
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px 17px;
+        border-bottom: 1px solid #edf1f7;
+        min-height: 55px;
+      }
+      .card-title {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+      }
+      .card-title .icon {
+        color: #2b61df;
+        width: 18px;
+        height: 18px;
+      }
+      .card-body {
+        padding: 15px 17px;
+      }
+      .transfer-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .transfer-heading p {
+        font-size: 11px;
+        margin-top: 3px;
+      }
+      .pct {
+        color: var(--blue);
+        font-size: 27px;
+        font-weight: 760;
+        letter-spacing: -0.8px;
+        line-height: 1.1;
+      }
+      .progress {
+        height: 10px;
+        background: #eaf0fb;
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      .progress > span {
+        height: 100%;
+        display: block;
+        border-radius: inherit;
+        transition: width 0.35s;
+        background: linear-gradient(90deg, #2c61e7, #5e91ff);
+        box-shadow: 0 0 8px #5e91ff77;
+      }
+      .prog-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 11px;
+        margin: 7px 0 13px;
+      }
+      .log {
+        height: 100px;
+        overflow-y: auto;
+        background: #f6f8fc;
+        border: 1px solid #eaf0f9;
+        border-radius: 8px;
+        padding: 7px 10px;
+        color: #3f5472;
+        font:
+          11px/1.6 ui-monospace,
+          Consolas,
+          "Microsoft YaHei",
+          monospace;
+        scrollbar-color: #aab8d1 transparent;
+        scrollbar-width: thin;
+      }
+      .log:focus-visible {
+        outline: 2px solid #88a8fa;
+      }
+      .log p {
+        padding: 1px 0;
+        overflow-wrap: anywhere;
+      }
+      .log time {
+        color: #536a8e;
+        margin-right: 6px;
+      }
+      .segment {
+        display: flex;
+        gap: 2px;
+        border-radius: 7px;
+        background: #f0f4fb;
+        padding: 2px;
+      }
+      .segment button {
+        background: none;
+        border: 0;
+        border-radius: 5px;
+        padding: 3px 8px;
+        color: var(--muted);
+        font-size: 11px;
+        min-width: 40px;
+      }
+      .segment button[aria-pressed="true"] {
+        background: white;
+        color: #2456ca;
+        font-weight: 700;
+        box-shadow: 0 1px 4px #283d7521;
+      }
+      .chart-body {
+        padding: 13px 15px 10px;
+      }
+      .chart-summary {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        gap: 9px;
+        align-items: baseline;
+      }
+      .chart-summary strong {
+        font-size: 17px;
+        color: var(--ink);
+      }
+      .chart {
+        width: 100%;
+        height: 153px;
+        display: block;
+        overflow: visible;
+      }
+      .chart text {
+        font:
+          10px "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+        fill: #576b88;
+      }
+      .chart-foot {
+        color: var(--muted);
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        justify-content: center;
+      }
+      .key {
+        width: 7px;
+        height: 7px;
+        background: var(--blue2);
+        border-radius: 100%;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        white-space: nowrap;
+      }
+      th {
+        color: #516683;
+        background: #f8faff;
+        font-size: 11px;
+        font-weight: 650;
+      }
+      td,
+      th {
+        padding: 10px 12px;
+        border-bottom: 1px solid #edf1f7;
+      }
+      td {
+        font-size: 12px;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td:first-child,
+      th:first-child {
+        padding-left: 17px;
+      }
+      td:last-child,
+      th:last-child {
+        padding-right: 17px;
+      }
+      .detail-btn {
+        font-size: 12px;
+        min-height: 0;
+      }
+      .link-node {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .link-node b {
+        display: block;
+        font-size: 13px;
+      }
+      .link-node .mono {
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .link-node > div:nth-child(2) {
+        flex: 1;
+        min-width: 0;
+      }
+      .connector {
+        margin: 2px 0 2px 17px;
+        width: 1px;
+        height: 20px;
+        background: repeating-linear-gradient(#a2b9ed 0 3px, transparent 3px 6px);
+      }
+      .node-icon.green {
+        color: #188567;
+        background: #eaf8f1;
+      }
+      .route-foot {
+        font-size: 11px;
+        color: var(--muted);
+        border-top: 1px solid #edf1f7;
+        padding-top: 9px;
+        margin-top: 12px;
+      }
+      .page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 3px 0 21px;
+      }
+      .page-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(250px, 0.48fr);
+        gap: 15px;
+      }
+      .page-grid .card {
+        align-self: start;
+      }
+      .filters {
+        display: flex;
+        align-items: end;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .filters label {
+        min-width: 130px;
+      }
+      .filters label:first-child {
+        flex: 1;
+        max-width: 340px;
+      }
+      .filters .btn {
+        min-height: 37px;
+      }
+      .field {
+        display: block;
+        color: #344968;
+        font-weight: 650;
+        font-size: 12px;
+      }
+      .field input,
+      .field select {
+        display: block;
+        width: 100%;
+        border: 1px solid #d7e1f1;
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 5px;
+        color: var(--ink);
+        background: #fff;
+        min-height: 38px;
+      }
+      .field small {
+        display: block;
+        color: var(--muted);
+        font-weight: 400;
+        margin-top: 4px;
+      }
+      .notice {
+        background: #f0f5ff;
+        border: 1px solid #e1eaff;
+        border-radius: 9px;
+        padding: 10px 12px;
+        color: #385583;
+        font-size: 12px;
+      }
+      .notice b {
+        display: block;
+        color: #244d9c;
+      }
+      .status-list {
+        display: grid;
+        gap: 11px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .status-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        border-bottom: 1px solid #eef2f8;
+        padding-bottom: 10px;
+      }
+      .status-list li:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      .step-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 7px;
+      }
+      .step-list button {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: white;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px;
+        text-align: left;
+        color: var(--muted);
+      }
+      .step-list button[aria-current="step"] {
+        background: #edf3ff;
+        border-color: #e0eaff;
+        color: #2456ca;
+      }
+      .step-list button:hover {
+        background: #f3f7ff;
+      }
+      .step-num {
+        border-radius: 50%;
+        width: 25px;
+        height: 25px;
+        background: #e4edff;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+      }
+      .step-list b,
+      .step-list small {
+        display: block;
+      }
+      .step-list small {
+        font-size: 10px;
+      }
+      .form-stack {
+        display: grid;
+        gap: 15px;
+      }
+      .setup-fields {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .setup-wide {
+        grid-column: 1 / -1;
+      }
+      .path-settings {
+        margin-bottom: 15px;
+        scroll-margin-top: 90px;
+      }
+      .path-source {
+        border-top: 1px solid var(--line);
+        margin-top: 17px;
+        padding-top: 15px;
+      }
+      .path-source ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .path-source .filters label:first-child {
+        max-width: 540px;
+      }
+      .source-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 9px;
+      }
+      #pair-code-panel:not([hidden]) + #live-key-form {
+        border-top: 1px solid var(--line);
+        margin-top: 16px;
+        padding-top: 15px;
+      }
+      .pair-replace,
+      .field-check {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-weight: 650;
+        color: #344968;
+      }
+      .pair-code-help {
+        display: grid;
+        gap: 4px;
+      }
+      #pair-code-output .toolbar {
+        margin-top: 7px;
+      }
+      .source-group {
+        min-width: 0;
+        margin: 0;
+        padding: 10px 12px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .source-group legend {
+        padding: 0 4px;
+        font-weight: 700;
+      }
+      .source-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) auto;
+        align-items: end;
+        gap: 8px;
+        margin: 7px 0;
+      }
+      .source-row .btn {
+        min-height: 38px;
+      }
+      .source-fields {
+        border: 0;
+        padding: 0;
+        min-width: 0;
+        margin: 0;
+      }
+      .actions {
+        margin-top: 18px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .checks {
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+      .checks li {
+        padding: 6px 0;
+        border-bottom: 1px solid #edf1f7;
+      }
+      .checks li:last-child {
+        border-bottom: 0;
+      }
+      .checks .icon {
+        width: 14px;
+        height: 14px;
+        margin-right: 5px;
+        color: var(--green);
+      }
+      .empty {
+        padding: 25px !important;
+        text-align: center;
+        color: var(--muted);
+      }
+      .toast {
+        position: fixed;
+        bottom: 23px;
+        right: 23px;
+        z-index: 4;
+        background: #15345e;
+        color: white;
+        padding: 11px 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px #23334b45;
+        font-size: 13px;
+      }
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        color: #60738d;
+        font-size: 11px;
+        margin-top: 15px;
+      }
+      .footer a {
+        color: #255ac4;
+      }
+      dialog {
+        border: 1px solid var(--line);
+        padding: 0;
+        border-radius: 15px;
+        color: var(--ink);
+        width: min(520px, calc(100% - 28px));
+        box-shadow: 0 20px 100px #20365c4d;
+      }
+      dialog::backdrop {
+        background: #15284166;
+        backdrop-filter: blur(2px);
+      }
+      .detail-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 13px;
+        margin: 0 0 14px;
+      }
+      .detail-grid dt {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .detail-grid dd {
+        margin: 2px 0 0;
+        overflow-wrap: anywhere;
+      }
+      .demo-log {
+        height: auto;
+        max-height: 220px;
+      }
+      @media (max-width: 1150px) {
+        :root {
+          --nav: 190px;
+        }
+        .main,
+        .topbar {
+          padding-left: 19px;
+          padding-right: 19px;
+        }
+        .metrics {
+          gap: 10px;
+        }
+        .metric {
+          padding: 12px;
+          gap: 8px;
+        }
+        .metric-icon {
+          width: 30px;
+          height: 30px;
+        }
+        .metric-value {
+          font-size: 18px;
+        }
+        .bottom-split {
+          grid-template-columns: minmax(0, 1fr) 255px;
+        }
+        .table-optional {
+          display: none;
+        }
+      }
+      @media (max-width: 930px) {
+        :root {
+          --nav: 155px;
+        }
+        .sidebar {
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+        .brand {
+          gap: 7px;
+          margin-left: 3px;
+          margin-right: 2px;
+        }
+        .brand-icon {
+          width: 34px;
+          height: 34px;
+        }
+        .brand-name {
+          font-size: 17px;
+        }
+        .brand-sub {
+          letter-spacing: 0.8px;
+        }
+        .metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .split,
+        .page-grid {
+          grid-template-columns: 1fr;
+        }
+        .chart {
+          height: 168px;
+        }
+        .topbar {
+          height: 56px;
+        }
+      }
+      @media (max-width: 620px) {
+        :root {
+          --nav: 0px;
+        }
+        .sidebar {
+          position: sticky;
+          top: 0;
+          width: auto;
+          height: auto;
+          padding: 9px 12px;
+          display: block;
+          border-bottom: 1px solid var(--line);
+          border-right: 0;
+        }
+        .brand {
+          margin: 0 0 8px;
+        }
+        .brand-sub,
+        .nav-label,
+        .nav-sep,
+        .side-foot,
+        .topbar {
+          display: none;
+        }
+        .sidebar nav {
+          display: flex;
+          gap: 4px;
+        }
+        .nav-link {
+          font-size: 11px;
+          margin: 0;
+          padding: 0 7px;
+          height: 34px;
+          gap: 4px;
+          flex: 1;
+          justify-content: center;
+          white-space: nowrap;
+        }
+        .nav-link .icon {
+          width: 14px;
+          height: 14px;
+        }
+        .main {
+          padding: 13px 11px 24px;
+        }
+        .hero {
+          padding: 15px;
+          align-items: flex-start;
+          flex-direction: column;
+          margin-bottom: 11px;
+        }
+        h1 {
+          font-size: 24px;
+        }
+        .hero p {
+          font-size: 12px;
+        }
+        .hide-mobile {
+          display: none;
+        }
+        .card-body {
+          padding: 13px;
+        }
+        .card-head {
+          padding: 12px;
+        }
+        .metric {
+          padding: 9px 8px;
+        }
+        .metric-note {
+          font-size: 10px;
+        }
+        .pct {
+          font-size: 23px;
+        }
+        .page-head {
+          align-items: flex-start;
+          flex-direction: column;
+          margin-bottom: 13px;
+        }
+        .setup-fields {
+          grid-template-columns: 1fr;
+        }
+        .source-row {
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+        .source-row > :first-child {
+          grid-column: 1 / -1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="auth" id="auth" hidden>
+      <article class="card auth-card">
+        <div class="brand">
+          <span class="brand-icon" data-icon="sync"></span
+          ><span
+            ><span class="brand-name">bz-rsync</span
+            ><span class="brand-sub" style="display: block">同步控制台</span></span
+          >
+        </div>
+        <h1>登录同步控制台</h1>
+        <p class="muted">输入控制台密码，查看NAS 同步状态。</p>
+        <form class="form-stack" id="login-form">
+          <label class="field"
+            >控制台密码<input id="login-password" type="password" autocomplete="current-password" required
+          /></label>
+          <p class="form-feedback" id="login-result" role="status" hidden></p>
+          <button class="btn primary" type="submit"><span data-icon="shield"></span>登录</button>
+          <button class="btn flat" type="button" data-demo id="back-to-demo">返回设计预览</button>
+        </form>
+      </article>
+    </main>
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#dashboard" aria-label="bz-rsync 同步总览"
+        ><span class="brand-icon" data-icon="sync"></span
+        ><span
+          ><span class="brand-name">bz-rsync</span
+          ><span class="brand-sub" style="display: block">同步控制台</span></span
+        ></a
+      >
+      <nav aria-label="主菜单">
+        <div class="nav-label">工作台</div>
+        <a class="nav-link" href="#dashboard" data-nav="dashboard"><span data-icon="grid"></span>同步总览</a>
+        <a class="nav-link" href="#tasks" data-nav="tasks"><span data-icon="transfer"></span>同步任务</a>
+        <a class="nav-link" href="#history" data-nav="history"><span data-icon="history"></span>同步历史</a>
+        <div class="nav-sep"></div>
+        <div class="nav-label">连接与存储</div>
+        <a class="nav-link" href="#settings" data-nav="settings"
+          ><span data-icon="settings"></span>连接设置</a
+        >
+      </nav>
+      <div class="side-foot">
+        <b id="app-version">—</b>
+        <p>Powered by BaoziPT</p>
+      </div>
+    </aside>
+    <div class="app" id="console">
+      <header class="topbar">
+        <div class="crumb">
+          <span data-icon="grid"></span>工作台 <span aria-hidden="true">/</span>
+          <strong id="crumb-title">同步总览</strong>
+        </div>
+        <div class="top-right">
+          <span class="pill" data-demo><span data-icon="flask"></span>交互原型 · 示例数据</span
+          ><span class="pill" data-live hidden><span data-icon="shield"></span>本地接收控制台</span
+          ><button class="btn flat" id="preview-login" type="button" data-demo>登录预览</button
+          ><button class="btn flat" id="logout" type="button" data-live hidden>退出</button>
+        </div>
+      </header>
+      <main class="main" id="main-content">
+        <p class="notice api-notice" id="api-notice" role="status" hidden></p>
+        <section data-page="dashboard">
+          <header class="hero">
+            <div>
+              <div class="eyebrow">BZ-RSYNC BACKUP CONTROL</div>
+              <h1>同步总览</h1>
+              <p>追踪宝塔备份到NAS 的传输、校验和归档。</p>
+            </div>
+            <div class="toolbar">
+              <a class="btn hide-mobile" href="#settings"><span data-icon="settings"></span>连接设置</a
+              ><button type="button" class="btn primary" data-demo data-run>
+                <span data-icon="play"></span>运行演示</button
+              ><a class="btn primary" href="#tasks" data-live hidden
+                ><span data-icon="activity"></span>查看同步任务</a
+              >
+            </div>
+          </header>
+          <div class="metrics" aria-label="同步指标">
+            <div class="card metric">
+              <span class="metric-icon" data-icon="transfer"></span>
+              <div>
+                <div class="metric-label">当前传输</div>
+                <strong class="metric-value" data-ongoing>1<span>批</span></strong>
+                <div class="metric-note">宝塔每日备份</div>
+              </div>
+            </div>
+            <div class="card metric">
+              <span class="metric-icon green" data-icon="shield"></span>
+              <div>
+                <div class="metric-label">近 7 天已归档</div>
+                <strong class="metric-value" data-week-count>6<span>批</span></strong>
+                <div class="metric-note">已通过 SHA-256 校验</div>
+              </div>
+            </div>
+            <div class="card metric">
+              <span class="metric-icon aqua" data-icon="speed"></span>
+              <div>
+                <div class="metric-label">当前接收速率</div>
+                <strong class="metric-value" data-metric-speed>23.8<span>MiB/s</span></strong>
+                <div class="metric-note">SSH / rsync</div>
+              </div>
+            </div>
+            <div class="card metric" data-demo>
+              <span class="metric-icon violet" data-icon="disk"></span>
+              <div>
+                <div class="metric-label">试点卷可用空间</div>
+                <strong class="metric-value">428<span>GiB</span></strong>
+                <div class="metric-note">共享目录独立挂载</div>
+              </div>
+            </div>
+            <div class="card metric" data-live hidden>
+              <span class="metric-icon violet" data-icon="server"></span>
+              <div>
+                <div class="metric-label">发送端配对</div>
+                <strong class="metric-value" data-pairing>读取中</strong>
+                <div class="metric-note">专用 SSH 公钥</div>
+              </div>
+            </div>
+          </div>
+          <div class="split">
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="activity"></span>实时同步</h2>
+                <span class="tag" data-phase><span class="status-dot"></span>传输中</span>
+              </div>
+              <div class="card-body">
+                <div class="transfer-heading">
+                  <div>
+                    <h3 data-run-name>宝塔每日备份</h3>
+                    <p class="mono muted" data-run-caption>2026-11-07 · 宝塔发送端 → NAS</p>
+                  </div>
+                  <strong class="pct num" data-percent>67.4%</strong>
+                </div>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="示例批次传输进度"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow="67.4"
+                >
+                  <span style="width: 67.4%"></span>
+                </div>
+                <div class="prog-meta num">
+                  <span data-bytes>12.54 / 18.60 GiB</span><span data-eta>约 4 分 21 秒</span>
+                </div>
+                <div class="run-controls" data-run-controls hidden></div>
+                <div class="log" data-log tabindex="0" aria-label="最近同步事件，可滚动"></div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="chart"></span>同步趋势</h2>
+                <div class="segment" aria-label="趋势范围">
+                  <button data-range="7" type="button" aria-pressed="true">7 天</button
+                  ><button data-range="30" type="button" aria-pressed="false">30 天</button>
+                </div>
+              </div>
+              <div class="chart-body">
+                <div class="chart-summary">
+                  <strong class="num" id="trend-total">61.4 GiB</strong
+                  ><span id="trend-summary">近 7 天已归档</span>
+                </div>
+                <svg
+                  class="chart"
+                  id="chart"
+                  viewBox="0 0 420 164"
+                  role="img"
+                  aria-label="近 7 天每天已归档的数据量"
+                ></svg>
+                <div class="chart-foot"><span class="key"></span>已归档数据量（GiB）</div>
+              </div>
+            </article>
+          </div>
+          <div class="split bottom-split">
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="history"></span>最近同步历史</h2>
+                <a class="btn flat" href="#history">查看全部 <span data-icon="right"></span></a>
+              </div>
+              <div class="table-wrap">
+                <table aria-label="最近同步历史">
+                  <thead>
+                    <tr>
+                      <th>批次日期</th>
+                      <th>结果</th>
+                      <th>数据量</th>
+                      <th class="table-optional">用时</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recent-rows"></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="route"></span>连接拓扑</h2>
+                <span class="tag good" data-demo>单发送端</span>
+                <a class="btn flat" href="#settings/paths" data-live hidden>设置同步路径</a>
+              </div>
+              <div class="card-body">
+                <div class="link-node">
+                  <span class="node-icon" data-icon="server"></span>
+                  <div>
+                    <b>宝塔发送端</b>
+                    <div class="mono" data-demo>/var/lib/bz-rsync/outbox</div>
+                    <div class="mono" id="live-source-mode" data-live hidden>读取备份来源</div>
+                  </div>
+                </div>
+                <div class="connector" aria-hidden="true"></div>
+                <div class="link-node">
+                  <span class="node-icon green" data-icon="disk"></span>
+                  <div>
+                    <b>NAS · Docker</b>
+                    <div class="mono" data-demo>/srv/bz-rsync/backups</div>
+                    <div class="mono" id="live-layout" data-live hidden>容器接收数据卷</div>
+                  </div>
+                </div>
+                <p class="route-foot" data-demo>
+                  SSH 2222 · Web 8080 · <span data-retention-summary>自动清理已关闭</span>
+                </p>
+                <p class="route-foot" data-live hidden>
+                  <span id="live-ports">SSH / rsync</span> ·
+                  <span data-retention-summary>正在读取保留策略</span>
+                </p>
+              </div>
+            </article>
+          </div>
+          <article class="card manual-card" id="manual-sync-card" data-live hidden>
+            <div>
+              <h2 class="card-title"><span data-icon="transfer"></span>手动同步</h2>
+              <p class="muted">宝塔发送端在线时，通常约 30 秒内领取任务。</p>
+              <div class="manual-status-row" role="status">
+                <span class="tag quiet" id="manual-sync-status">暂无手动任务</span>
+                <span class="muted" id="manual-sync-detail"></span>
+              </div>
+            </div>
+            <form class="manual-form" id="manual-sync-form">
+              <label class="field">备份日期（北京时间）<input type="date" id="manual-sync-day" required /></label>
+              <button class="btn primary" id="manual-sync-submit" type="submit">
+                <span data-icon="play"></span>立即同步
+              </button>
+              <p class="form-feedback" id="manual-sync-result" role="status" hidden></p>
+            </form>
+          </article>
+        </section>
+        <section data-page="tasks" hidden>
+          <header class="page-head">
+            <div>
+              <div class="eyebrow">TRANSFER QUEUE</div>
+              <h1>同步任务</h1>
+              <p>查看批次当前阶段、传输速率和最近事件。</p>
+            </div>
+            <button class="btn primary" type="button" data-demo data-run>
+              <span data-icon="play"></span>运行演示</button
+            ><a class="pill" href="#dashboard/manual" data-live hidden>前往总览发起手动同步</a>
+          </header>
+          <div class="page-grid">
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="activity"></span>宝塔每日备份</h2>
+                <span class="tag" data-phase>传输中</span>
+              </div>
+              <div class="card-body">
+                <div class="transfer-heading">
+                  <div>
+                    <h3 data-run-date>2026-11-07 批次</h3>
+                    <p class="muted" data-task-caption>依次接收、校验、归档</p>
+                  </div>
+                  <strong class="pct num" data-percent>67.4%</strong>
+                </div>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="示例批次传输进度"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow="67.4"
+                >
+                  <span style="width: 67.4%"></span>
+                </div>
+                <div class="prog-meta num">
+                  <span data-bytes>12.54 / 18.60 GiB</span><span data-eta>约 4 分 21 秒</span>
+                </div>
+                <div class="run-controls" data-run-controls hidden></div>
+                <div class="log demo-log" data-log tabindex="0" aria-label="同步事件，可滚动"></div>
+                <p class="notice" id="run-progress-note" style="margin-top: 15px">
+                  百分比表示已传字节占比。传完后仍需核对清单，校验通过的批次才显示为已归档。
+                </p>
+              </div>
+            </article>
+            <article class="card" id="run-workflow">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="route"></span>批次流程</h2>
+              </div>
+              <div class="card-body">
+                <ul class="status-list">
+                  <li>准备批次 <span class="tag good" id="step-prepare">已完成</span></li>
+                  <li>接收文件 <span class="tag" id="step-receive">进行中</span></li>
+                  <li>SHA-256 校验 <span class="tag quiet" id="step-verify">等待</span></li>
+                  <li>归档批次 <span class="tag quiet" id="step-archive">等待</span></li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </section>
+        <section data-page="history" hidden>
+          <header class="page-head">
+            <div>
+              <div class="eyebrow">TRANSFER HISTORY</div>
+              <h1>同步历史</h1>
+              <p>按日期或状态定位批次，查看传输、校验和归档的结果。</p>
+            </div>
+          </header>
+          <article class="card">
+            <div class="card-head">
+              <h2 class="card-title"><span data-icon="history"></span>批次记录</h2>
+              <span class="tag quiet" id="history-count"></span>
+            </div>
+            <div class="card-body">
+              <form class="filters" id="history-filters">
+                <label class="field"
+                  >搜索日期、批次或说明<input
+                    type="search"
+                    id="history-search"
+                    placeholder="例如 2026-11-06 或连接中断" /></label
+                ><label class="field"
+                  >结果<select id="history-status">
+                    <option value="">全部结果</option>
+                    <option value="good">已归档</option>
+                    <option value="warn" data-demo>传输中断</option>
+                    <option value="bad" id="bad-status">校验失败</option>
+                    <option value="paused" data-live hidden>已暂停</option>
+                    <option value="cancelled" data-live hidden>已取消</option>
+                  </select></label
+                ><button class="btn" type="reset">清空筛选</button>
+              </form>
+            </div>
+            <div class="table-wrap">
+              <table aria-label="全部批次记录">
+                <thead>
+                  <tr>
+                    <th>批次日期</th>
+                    <th>任务</th>
+                    <th>结果</th>
+                    <th>数据量</th>
+                    <th>用时</th>
+                    <th>结束时间（北京时间）</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="history-rows"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+        <section data-page="settings" hidden>
+          <header class="page-head">
+            <div>
+              <div class="eyebrow">LOCAL SETUP</div>
+              <h1>连接设置</h1>
+              <p>配置宝塔发送端与NAS 接收端。</p>
+            </div>
+            <span class="pill" data-demo><span data-icon="flask"></span>示例配置</span>
+          </header>
+          <div class="page-grid" data-demo>
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title">
+                  <span data-icon="settings"></span><span id="setup-title">1 / 3 · 接收目录</span>
+                </h2>
+              </div>
+              <div class="card-body" id="setup-form">
+                <div class="form-stack" data-setup="0">
+                  <label class="field"
+                    >NAS 共享目录<input id="nas-path" value="/srv/bz-rsync/backups" required /><small
+                      >在NAS Docker 中将该目录挂载为可写数据卷。</small
+                    ></label
+                  >
+                  <label class="field"
+                    >控制台端口<input
+                      id="web-port"
+                      type="number"
+                      min="1"
+                      max="65535"
+                      value="8080"
+                      required
+                    /><small>用于浏览器访问同步控制台。</small></label
+                  >
+                  <div class="notice">
+                    <b>试点数据独立存放</b>接收、校验和归档使用这份试点目录。自动清理默认关闭。
+                  </div>
+                </div>
+                <div class="form-stack setup-fields" data-setup="1" hidden>
+                  <label class="field"
+                    >网站备份目录<input id="site-path" value="/www/backup/site" required /><small
+                      >在宝塔端指定，可配置多个独立网站备份目录。</small
+                    ></label
+                  >
+                  <label class="field"
+                    >数据库备份目录<input id="database-path" value="/www/backup/database" required /><small
+                      >在宝塔端指定，和网站备份分开归类。</small
+                    ></label
+                  >
+                  <label class="field setup-wide"
+                    >宝塔发送目录<input id="source-path" value="/var/lib/bz-rsync/outbox" required /><small
+                      >只发送已经发布的日期批次和 SHA256SUMS 清单。</small
+                    ></label
+                  >
+                  <label class="field"
+                    >NAS 地址<input id="nas-host" placeholder="例如 192.168.1.30" required /><small
+                      >填写宝塔服务器能够到达的 NAS 地址。</small
+                    ></label
+                  >
+                  <label class="field"
+                    >SSH 接收端口<input id="ssh-port" type="number" min="1" max="65535" value="2222" required
+                  /></label>
+                  <div class="notice setup-wide">
+                    <b>使用专用 SSH 密钥</b>在宝塔发送端安装时登记公钥，在发送端核对接收端主机指纹。
+                  </div>
+                </div>
+                <div class="form-stack" data-setup="2" hidden>
+                  <div class="notice"><b>从宝塔发送端发起测试</b><span id="setup-target"></span></div>
+                  <button class="btn" id="connection-test" type="button">
+                    <span data-icon="shield"></span>演示连通性检查
+                  </button>
+                  <ul class="checks" id="check-results" hidden>
+                    <li><span data-icon="check"></span>SSH 握手通过（示例）</li>
+                    <li><span data-icon="check"></span>发送端密钥获准（示例）</li>
+                    <li><span data-icon="check"></span>接收目录可写（示例）</li>
+                  </ul>
+                </div>
+                <div class="actions">
+                  <button class="btn" id="setup-prev" type="button" hidden>上一步</button
+                  ><button class="btn primary" id="setup-next" type="button">下一步</button>
+                </div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="route"></span>配置向导</h2>
+              </div>
+              <div class="card-body">
+                <ol class="step-list">
+                  <li>
+                    <button type="button" data-step="0" aria-current="step">
+                      <span class="step-num">1</span><span><b>接收目录</b><small>NAS 备份目录</small></span>
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" data-step="1">
+                      <span class="step-num">2</span
+                      ><span><b>连接宝塔</b><small>发送路径与 SSH 参数</small></span>
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" data-step="2">
+                      <span class="step-num">3</span
+                      ><span><b>测试连接</b><small>发送端连通性与可写检查</small></span>
+                    </button>
+                  </li>
+                </ol>
+              </div>
+            </article>
+          </div>
+          <article class="card path-settings" id="path-settings" data-live hidden>
+            <div class="card-head">
+              <h2 class="card-title"><span data-icon="disk"></span>同步路径</h2>
+              <span class="tag quiet" id="paths-badge">读取中</span>
+            </div>
+            <div class="card-body">
+              <h3>NAS 归档位置</h3>
+              <dl class="detail-grid" style="margin-top: 10px">
+                <div class="setup-wide">
+                  <dt>宿主机挂载目录</dt>
+                  <dd class="mono" id="backup-root">读取中</dd>
+                </div>
+                <div>
+                  <dt>当前网站归档目录</dt>
+                  <dd class="mono" id="site-destination">—</dd>
+                </div>
+                <div>
+                  <dt>当前数据库归档目录</dt>
+                  <dd class="mono" id="database-destination">—</dd>
+                </div>
+              </dl>
+              <p class="notice" id="paths-readonly" hidden>当前归档布局的路径由NAS Docker 部署配置管理。</p>
+              <form class="form-stack" id="paths-form" hidden>
+                <div class="form-stack setup-fields">
+                  <label class="field"
+                    >网站子目录名<input
+                      id="site-dir"
+                      type="text"
+                      autocomplete="off"
+                      spellcheck="false"
+                      required
+                  /></label>
+                  <label class="field"
+                    >数据库子目录名<input
+                      id="database-dir"
+                      type="text"
+                      autocomplete="off"
+                      spellcheck="false"
+                      required
+                  /></label>
+                </div>
+                <p class="notice">
+                  填写两个不同的单级目录名，可用字母、汉字、数字、下划线和连字符。后续日期批次按 YYYYMMDD
+                  归档到新目录，之前的批次留在原路径。宿主机挂载目录通过NAS Docker 修改。
+                </p>
+                <div class="toolbar">
+                  <button class="btn primary" type="submit">保存 NAS 归档路径</button>
+                </div>
+                <p class="form-feedback" id="paths-result" role="status" hidden></p>
+              </form>
+              <div class="path-source">
+                <div class="source-heading">
+                  <h3>宝塔备份来源</h3>
+                  <span class="tag quiet" id="source-apply-badge">读取中</span>
+                </div>
+                <p class="muted" id="paths-source-mode" role="status">正在读取宝塔发送端配置。</p>
+                <p class="mono muted" id="paths-source-root" hidden></p>
+                <form class="form-stack" id="sources-form" style="margin-top: 12px" hidden>
+                  <fieldset class="form-stack source-fields" id="sources-fields">
+                    <label class="field"
+                      >发送来源模式<select id="source-mode">
+                        <option value="outbox">发送宝塔暂存批次（outbox）</option>
+                        <option value="direct">直接读取网站和数据库备份目录</option></select
+                      ><small>选择直接读取后，可分别添加网站和数据库备份目录。</small></label
+                    >
+                    <div class="form-stack" id="source-direct-fields" hidden>
+                      <fieldset class="source-group" data-source-group="website">
+                        <legend>网站备份目录</legend>
+                        <p class="muted">
+                          填写宝塔端允许读取的网站目录。默认授权范围为 /www/backup/site，默认匹配式为
+                          <code>*{date_compact}*.tar.gz</code>。
+                        </p>
+                        <div id="website-source-rows"></div>
+                        <button class="btn" type="button" data-add-source="website">添加网站目录</button>
+                      </fieldset>
+                      <fieldset class="source-group" data-source-group="database">
+                        <legend>数据库备份目录</legend>
+                        <p class="muted">
+                          填写宝塔端允许读取的数据库目录。默认授权范围为 /www/backup/database，默认匹配式为
+                          <code>*{date}*.sql.gz</code>。
+                        </p>
+                        <div id="database-source-rows"></div>
+                        <button class="btn" type="button" data-add-source="database">添加数据库目录</button>
+                      </fieldset>
+                    </div>
+                  </fieldset>
+                  <p class="notice">
+                    保存后，宝塔发送端会在下次发起同步时领取并检查配置。上方状态显示发送端的实际应用结果。
+                  </p>
+                  <div class="toolbar">
+                    <button class="btn primary" type="submit">保存宝塔备份来源</button>
+                  </div>
+                  <p class="form-feedback" id="sources-result" role="status" hidden></p>
+                </form>
+                <template id="source-row-template">
+                  <div class="source-row">
+                    <label class="field"
+                      >目录路径<input
+                        type="text"
+                        name="directory"
+                        autocomplete="off"
+                        spellcheck="false"
+                        required
+                    /></label>
+                    <label class="field"
+                      >文件名匹配式（可选）<input
+                        type="text"
+                        name="pattern"
+                        autocomplete="off"
+                        spellcheck="false"
+                    /></label>
+                    <button class="btn danger-btn" type="button" data-remove-source>移除</button>
+                  </div>
+                </template>
+                <div id="sources-legacy" hidden>
+                  <dl class="detail-grid" style="margin-top: 10px">
+                    <div>
+                      <dt>网站来源</dt>
+                      <dd><ul class="mono" id="site-sources"></ul></dd>
+                    </div>
+                    <div>
+                      <dt>数据库来源</dt>
+                      <dd><ul class="mono" id="database-sources"></ul></dd>
+                    </div>
+                  </dl>
+                  <div class="filters">
+                    <label class="field"
+                      >在宝塔终端运行<input
+                        class="mono"
+                        id="source-command"
+                        type="text"
+                        value="python3 /opt/bz-rsync-sender/bz-rsync-send.py configure-sources"
+                        readonly
+                    /></label>
+                    <button class="btn" id="copy-source-command" type="button">复制命令</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+          <div class="page-grid" data-live hidden>
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="shield"></span>宝塔发送端配对</h2>
+                <span class="tag quiet" id="live-pairing">读取中</span>
+              </div>
+              <div class="card-body">
+                <div class="notice pair-code-help" style="margin-bottom: 15px">
+                  <div class="toolbar">
+                    <a
+                      class="btn"
+                      id="sender-download-link"
+                      href="/downloads/sender.zip"
+                      download="bz-rsync-sender.zip"
+                    >
+                      <span data-icon="download"></span>下载宝塔发送端安装包
+                    </a>
+                  </div>
+                  <p>
+                    安装包包含 <code class="mono">sender/install.sh</code>、<code class="mono"
+                      >sender/bz-rsync-send.py</code
+                    >
+                    和配套文件。解压后，将完整的 <code class="mono">sender</code> 目录上传到宝塔。
+                  </p>
+                </div>
+                <div id="pair-code-panel" hidden>
+                  <div class="source-heading">
+                    <h3>一次性配对码</h3>
+                    <span class="tag quiet" id="pair-code-badge">未生成</span>
+                  </div>
+                  <form class="form-stack" id="pair-code-form">
+                    <label class="field">
+                      宝塔可访问的 NAS 地址
+                      <input
+                        id="pair-code-host"
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="例如 192.168.1.30"
+                        required
+                      />
+                      <small>填写 IP 或域名。当前 SSH 接收端口为 <span id="pair-code-port">—</span>。</small>
+                    </label>
+                    <label class="pair-replace" id="pair-replace-label" hidden>
+                      <input id="pair-code-replace" type="checkbox" />允许替换当前已配对发送端
+                    </label>
+                    <div class="toolbar">
+                      <button class="btn primary" id="pair-code-create" type="submit">生成配对码</button>
+                      <button class="btn danger-btn" id="pair-code-revoke" type="button" hidden>
+                        撤销配对码
+                      </button>
+                    </div>
+                    <p class="muted" id="pair-code-status" role="status" hidden></p>
+                    <div class="notice" id="pair-code-output" hidden>
+                      <label class="field"
+                        >配对码<input
+                          class="mono"
+                          id="pair-code-value"
+                          type="text"
+                          readonly
+                          autocomplete="off"
+                          spellcheck="false"
+                      /></label>
+                      <div class="toolbar">
+                        <button class="btn" id="pair-code-copy" type="button">复制配对码</button
+                        ><small>请仅在要配对的宝塔发送端使用此码。</small>
+                      </div>
+                    </div>
+                    <div class="pair-code-help muted">
+                      <span>在宝塔终端执行对应命令，按提示粘贴配对码。</span>
+                      <span>
+                        首次安装，在上传的 <code class="mono">sender</code> 目录上一级运行
+                        <code class="mono">sh sender/install.sh --pair</code>
+                      </span>
+                      <span
+                        >已安装
+                        <code class="mono">python3 /opt/bz-rsync-sender/bz-rsync-send.py pair</code></span
+                      >
+                    </div>
+                    <p class="form-feedback" id="pair-code-result" role="status" hidden></p>
+                  </form>
+                </div>
+                <form class="form-stack" id="live-key-form">
+                  <h3>手动登记公钥</h3>
+                  <label class="field"
+                    >发送端 SSH 公钥<textarea
+                      class="mono"
+                      id="public-key"
+                      rows="3"
+                      required
+                      placeholder="ssh-ed25519 AAAA… bz-rsync"
+                    ></textarea
+                    ><small>粘贴宝塔发送端专用 SSH 公钥文件的内容。保存会替换先前登记的公钥。</small></label
+                  >
+                  <div class="toolbar">
+                    <button class="btn primary" type="submit">保存发送端公钥</button
+                    ><button class="btn danger-btn" type="button" id="remove-key" disabled>
+                      解除发送端配对
+                    </button>
+                  </div>
+                  <p id="key-result" class="muted" role="status" hidden></p>
+                </form>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2 class="card-title"><span data-icon="route"></span>连接顺序</h2>
+              </div>
+              <div class="card-body">
+                <ul class="status-list">
+                  <li>① 在NAS Docker 配置接收数据卷和端口</li>
+                  <li>② 在宝塔安装发送端，用一次性配对码登记。在上方同步路径中设置备份来源</li>
+                  <li>③ 在宝塔核对主机指纹并发起测试</li>
+                </ul>
+                <p class="notice" style="margin-top: 12px">
+                  当前 SSH 接收端口为 <span id="live-ssh-port">—</span>。连接地址使用宝塔可达的NAS 地址。
+                </p>
+              </div>
+            </article>
+          </div>
+          <article class="card" style="margin-top: 15px">
+            <div class="card-head">
+              <h2 class="card-title"><span data-icon="disk"></span>NAS 备份保留</h2>
+              <span class="tag quiet" id="retention-badge">已关闭</span>
+            </div>
+            <div class="card-body">
+              <form class="form-stack" id="retention-form">
+                <div class="notice">
+                  <b>清理范围</b>只清理 bz-rsync 在 NAS
+                  上校验并归档的批次。按北京时间的自然日计算，包含当天。启用后，到期批次会自动删除。
+                </div>
+                <div class="filters">
+                  <label class="field"
+                    >保留天数<input
+                      type="number"
+                      id="retention-days"
+                      min="0"
+                      max="365"
+                      step="1"
+                      value="0"
+                      required
+                    /><small>例如 5 或 7。输入 0 关闭自动清理。</small></label
+                  ><button class="btn primary" type="submit">保存保留策略</button>
+                </div>
+                <p class="muted" id="last-cleanup" data-live hidden></p>
+                <p class="muted" id="retention-result" role="status" hidden></p>
+              </form>
+            </div>
+          </article>
+          <article class="card" id="telegram-settings" style="margin-top: 15px" data-live hidden>
+            <div class="card-head">
+              <h2 class="card-title"><span data-icon="send"></span>Telegram Bot 通知</h2>
+              <span class="tag quiet" id="telegram-badge">读取中</span>
+            </div>
+            <div class="card-body">
+              <form class="form-stack" id="telegram-form" autocomplete="off">
+                <p class="notice">
+                  先在 Telegram 启动 Bot，或将 Bot 添加到接收消息的群组，然后填写该会话的数字 Chat ID。
+                </p>
+                <fieldset class="form-stack source-fields" id="telegram-fields" disabled>
+                  <label class="field-check">
+                    <input type="checkbox" id="telegram-enabled" />启用 Telegram 同步结果通知
+                  </label>
+                  <div class="form-stack setup-fields">
+                    <label class="field">
+                      Bot Token
+                      <input
+                        id="telegram-token"
+                        type="password"
+                        autocomplete="new-password"
+                        spellcheck="false"
+                      />
+                      <small id="telegram-token-note">填写 Bot Token。留空时保留已保存的 Token。</small>
+                    </label>
+                    <label class="field">
+                      Chat ID
+                      <input
+                        id="telegram-chat-id"
+                        type="text"
+                        placeholder="例如 -1001234567890"
+                        autocomplete="off"
+                        spellcheck="false"
+                      />
+                      <small>使用完整数字 ID，群组 ID 可能以负号开头。</small>
+                    </label>
+                  </div>
+                </fieldset>
+                <div class="toolbar">
+                  <button class="btn primary" id="telegram-save" type="submit" disabled>保存通知设置</button>
+                  <button class="btn" id="telegram-test" type="button" disabled>发送测试消息</button>
+                </div>
+                <p class="muted">测试使用已保存的 Token 和 Chat ID。通知关闭时仍可测试。</p>
+                <p class="form-feedback" id="telegram-result" role="status" hidden></p>
+              </form>
+            </div>
+          </article>
+          <article class="card" style="margin-top: 15px">
+            <div class="card-head">
+              <h2 class="card-title"><span data-icon="shield"></span>控制台密码</h2>
+              <button class="btn flat" id="settings-logout" type="button" data-live hidden>退出登录</button>
+            </div>
+            <div class="card-body">
+              <form class="form-stack" id="password-form">
+                <div class="filters">
+                  <label class="field"
+                    >当前密码<input
+                      id="current-password"
+                      type="password"
+                      autocomplete="current-password"
+                      required /></label
+                  ><label class="field"
+                    >新密码<input
+                      id="new-password"
+                      type="password"
+                      autocomplete="new-password"
+                      minlength="8"
+                      required /></label
+                  ><button class="btn primary" type="submit">修改密码</button>
+                </div>
+                <p class="form-feedback" id="password-result" role="status" hidden></p>
+              </form>
+            </div>
+          </article>
+        </section>
+        <footer class="footer" data-demo>
+          <span>bz-rsync · 本地设计预览 · 所有数据与操作均为演示</span>
+        </footer>
+      </main>
+    </div>
+    <dialog id="detail" aria-labelledby="detail-title">
+      <div class="card-head">
+        <h2 class="card-title" id="detail-title"><span data-icon="history"></span>批次详情</h2>
+        <form method="dialog">
+          <button class="btn flat" type="submit" aria-label="关闭详情">
+            <span data-icon="close"></span>
+          </button>
+        </form>
+      </div>
+      <div class="card-body" id="detail-body"></div>
+    </dialog>
+    <div class="toast" role="status" hidden></div>
+    <script>
+      const icons = {
+        sync: '<path d="M20 7H4l4-4M4 17h16l-4 4M4 7l4 4m12 6-4-4"/>',
+        download: '<path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/>',
+        send: '<path d="M21 3 3 10l7 4 4 7 7-18ZM10 14 21 3"/>',
+        grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+        transfer: '<path d="M3 7h17m-5-5 5 5-5 5M21 17H4m5-5-5 5 5 5"/>',
+        history: '<circle cx="12" cy="12" r="8.8"/><path d="M12 7v5l3 2"/>',
+        settings:
+          '<path d="M12 2.8l2.5 2 3.2-.1.9 3.1 2.6 1.9-1 3 .8 3.1-2.6 1.9-.9 3.1-3.2-.2-2.5 2-2.5-2-3.2.1-.9-3.1-2.6-1.9 1-3-.8-3.1 2.6-1.9.9-3.1 3.2.2z"/><circle cx="12" cy="12" r="3"/>',
+        flask: '<path d="M9 3h6m-5 0v6l-5 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-8V3M7 14h10"/>',
+        play: '<path d="M8 5l11 7-11 7z"/>',
+        shield: '<path d="M12 2.7 20 6v5c0 5-3.1 8.5-8 10.3C7.1 19.5 4 16 4 11V6zM9 12l2 2 4-4"/>',
+        speed: '<path d="M4 18a9 9 0 1 1 16 0M12 14l4-5"/><circle cx="12" cy="14" r="1.3"/>',
+        disk: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 13h18m-5 3h2m-7 0h1"/>',
+        activity: '<path d="M2 12h5l3-7 4 14 3-7h5"/>',
+        chart: '<path d="M3 4v16h18M6 15l4-5 4 2 5-6"/>',
+        right: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
+        route:
+          '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M6 9v7a2 2 0 0 0 2 2h7m-2-15h6a2 2 0 0 1 2 2v6"/>',
+        server:
+          '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.1M7 16.5h.1M12 7.5h5m-5 9h5"/>',
+        check: '<path d="m5 12 4 4L19 6"/>',
+        close: '<path d="m6 6 12 12M6 18 18 6"/>',
+      };
+      const svgIcon = (name) =>
+        `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+      document.querySelectorAll("[data-icon]").forEach((el) => (el.innerHTML = svgIcon(el.dataset.icon)));
+
+      const pageNames = {
+        dashboard: "同步总览",
+        tasks: "同步任务",
+        history: "同步历史",
+        settings: "连接设置",
+      };
+      const liveMode = /^https?:$/.test(location.protocol);
+      function navigate() {
+        const [route, subsection] = location.hash.slice(1).split("/");
+        const page = Object.hasOwn(pageNames, route) ? route : "dashboard";
+        document.querySelectorAll("[data-page]").forEach((el) => (el.hidden = el.dataset.page !== page));
+        document.querySelectorAll("[data-nav]").forEach((el) => {
+          if (el.dataset.nav === page) el.setAttribute("aria-current", "page");
+          else el.removeAttribute("aria-current");
+        });
+        document.getElementById("crumb-title").textContent = pageNames[page];
+        document.title = `${pageNames[page]} · bz-rsync${liveMode ? "" : " 设计预览"}`;
+        const scrollTarget =
+          liveMode &&
+          {
+            "settings/paths": "path-settings",
+            "dashboard/manual": "manual-sync-card",
+          }[`${page}/${subsection}`];
+        if (scrollTarget) {
+          requestAnimationFrame(() => document.getElementById(scrollTarget).scrollIntoView());
+        } else {
+          window.scrollTo(0, 0);
+        }
+      }
+      window.addEventListener("hashchange", navigate);
+      navigate();
+
+      const records = liveMode
+        ? []
+        : [
+            {
+              date: "2026-11-06",
+              state: "good",
+              size: "12.8 GiB",
+              duration: "12 分 16 秒",
+              time: "03:12:16",
+              note: "全部归档文件通过 SHA-256 校验。",
+            },
+            {
+              date: "2026-11-05",
+              state: "warn",
+              size: "3.2 GiB",
+              duration: "4 分 03 秒",
+              time: "03:04:03",
+              note: "连接中断。部分数据仍保留在接收临时目录。",
+            },
+            {
+              date: "2026-11-04",
+              state: "good",
+              size: "10.6 GiB",
+              duration: "11 分 08 秒",
+              time: "03:11:08",
+              note: "全部归档文件通过 SHA-256 校验。",
+            },
+            {
+              date: "2026-11-03",
+              state: "bad",
+              size: "8.1 GiB",
+              duration: "9 分 46 秒",
+              time: "03:09:46",
+              note: "数据库备份与清单的 SHA-256 值不符。批次暂存，等待重传。",
+            },
+            {
+              date: "2026-11-02",
+              state: "good",
+              size: "9.4 GiB",
+              duration: "8 分 45 秒",
+              time: "03:08:45",
+              note: "全部归档文件通过 SHA-256 校验。",
+            },
+            {
+              date: "2026-11-01",
+              state: "good",
+              size: "10.2 GiB",
+              duration: "11 分 50 秒",
+              time: "03:11:50",
+              note: "全部归档文件通过 SHA-256 校验。",
+            },
+          ];
+      const states = {
+        good: "已归档",
+        warn: "传输中断",
+        bad: liveMode ? "同步失败" : "校验失败",
+        paused: "已暂停",
+        cancelled: "已取消",
+      };
+      function escapeHtml(value) {
+        const substitutions = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+        return String(value ?? "").replace(/[&<>"']/g, (char) => substitutions[char]);
+      }
+      const recordBadge = (row) =>
+        `<span class="tag ${row.state === "paused" ? "warn" : row.state === "cancelled" ? "quiet" : row.state}">${states[row.state]}</span>`;
+      const recordAction = (row) =>
+        `<button class="btn flat detail-btn" type="button" data-detail="${records.indexOf(row)}" aria-label="查看 ${escapeHtml(row.date)} 批次详情">详情</button>`;
+      const historySearch = document.getElementById("history-search");
+      const historyStatus = document.getElementById("history-status");
+      function renderRecords() {
+        document.getElementById("recent-rows").innerHTML =
+          records
+            .slice(0, 3)
+            .map(
+              (row) =>
+                `<tr><td class="num">${escapeHtml(row.date)}</td><td>${recordBadge(row)}</td><td class="num">${escapeHtml(row.size)}</td><td class="table-optional">${escapeHtml(row.duration)}</td><td>${recordAction(row)}</td></tr>`,
+            )
+            .join("") || '<tr><td class="empty" colspan="5">暂无已结束的同步批次。</td></tr>';
+        const query = historySearch.value.trim();
+        const filtered = records.filter(
+          (row) =>
+            (!historyStatus.value || row.state === historyStatus.value) &&
+            `${row.date} 宝塔每日备份 ${states[row.state]} ${row.note}`.includes(query),
+        );
+        document.getElementById("history-count").textContent = `${filtered.length} 条记录`;
+        document.getElementById("history-rows").innerHTML =
+          filtered
+            .map(
+              (row) =>
+                `<tr><td class="num">${escapeHtml(row.date)}</td><td>宝塔每日备份</td><td>${recordBadge(row)}</td><td class="num">${escapeHtml(row.size)}</td><td>${escapeHtml(row.duration)}</td><td class="num">${escapeHtml(row.endedDay || row.date)} ${escapeHtml(row.time)}</td><td>${recordAction(row)}</td></tr>`,
+            )
+            .join("") || '<tr><td class="empty" colspan="7">没有符合当前筛选条件的批次。</td></tr>';
+      }
+      const filterForm = document.getElementById("history-filters");
+      filterForm.addEventListener("input", renderRecords);
+      filterForm.addEventListener("reset", () => setTimeout(renderRecords, 0));
+      filterForm.addEventListener("submit", (event) => event.preventDefault());
+      renderRecords();
+
+      document.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-detail]");
+        if (!target) return;
+        const row = records[Number(target.dataset.detail)];
+        const log = row.events?.length
+          ? `<div class="log demo-log" tabindex="0" aria-label="批次事件（北京时间）" style="margin-top:10px">${row.events.map((event) => `<p><time datetime="${escapeHtml(event.time)}">${escapeHtml(beijingTimestamp(event.time))}</time>${escapeHtml(event.line)}</p>`).join("")}</div>`
+          : "";
+        document.getElementById("detail-body").innerHTML =
+          `<dl class="detail-grid"><div><dt>批次日期</dt><dd>${escapeHtml(row.date)}</dd></div><div><dt>结果</dt><dd>${recordBadge(row)}</dd></div><div><dt>已接收</dt><dd>${escapeHtml(row.size)}</dd></div><div><dt>结束时间</dt><dd>${escapeHtml(row.endedDay || row.date)} ${escapeHtml(row.time)}（北京时间）</dd></div></dl><div class="notice"><b>处理记录</b>${escapeHtml(row.note)}</div>${log}`;
+        document.getElementById("detail").showModal();
+      });
+
+      const trend = {
+        7: {
+          labels: ["11/01", "11/02", "11/03", "11/04", "11/05", "11/06", "11/07"],
+          values: [10.2, 9.4, 12.2, 10.6, 6.2, 12.8, 0],
+          max: 15,
+        },
+        30: {
+          labels: ["10/09", "10/16", "10/23", "10/30", "11/07"],
+          values: [46.9, 74.1, 50.3, 66.2, 61.4],
+          max: 80,
+        },
+      };
+      let currentRange = "7";
+      function drawChart(range) {
+        currentRange = range;
+        const { labels, values, max } = trend[range];
+        const top = 15,
+          bottom = 132,
+          left = 32,
+          right = 402;
+        const points = values.map((value, index) => [
+          left + (index * (right - left)) / (values.length - 1),
+          bottom - (value * (bottom - top)) / max,
+        ]);
+        const line = points.map(([x, y], index) => `${index ? "L" : "M"}${x},${y}`).join(" ");
+        const grid = [0, 1, 2, 3]
+          .map((index) => {
+            const y = bottom - ((bottom - top) * index) / 3;
+            return `<path d="M${left} ${y}H${right}" fill="none" stroke="#dfe8f6" stroke-dasharray="4 4"/><text x="0" y="${y + 4}">${Math.round((max * index) / 3)}</text>`;
+          })
+          .join("");
+        const chart = document.getElementById("chart");
+        chart.setAttribute(
+          "aria-label",
+          range === "7" ? "近 7 天每天已归档的数据量" : "近 30 天分段归档的数据量",
+        );
+        chart.innerHTML = `<defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1" gradientUnits="objectBoundingBox"><stop offset="0%" stop-color="#427cff" stop-opacity=".26"/><stop offset="100%" stop-color="#427cff" stop-opacity=".035"/></linearGradient></defs>${grid}<path d="${line} L${right},${bottom} H${left} Z" fill="url(#area)"/><path d="${line}" fill="none" stroke="#3672f6" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>${points.map(([x, y], index) => `<circle cx="${x}" cy="${y}" r="3" fill="#fff" stroke="#3975ff" stroke-width="1.7"><title>${labels[index]}：${values[index]} GiB</title></circle><text x="${x}" y="152" text-anchor="middle">${labels[index]}</text>`).join("")}`;
+        document.getElementById("trend-total").textContent =
+          `${values.reduce((sum, value) => sum + value, 0).toFixed(1)} GiB`;
+        document.getElementById("trend-summary").textContent =
+          range === "7" ? "近 7 天已归档" : "近 30 天分段汇总";
+        document
+          .querySelectorAll("[data-range]")
+          .forEach((button) => button.setAttribute("aria-pressed", button.dataset.range === range));
+      }
+      document
+        .querySelectorAll("[data-range]")
+        .forEach((button) => button.addEventListener("click", () => drawChart(button.dataset.range)));
+      if (!liveMode) drawChart("7");
+
+      let progress = 67.4;
+      let timer;
+      const logBoxes = document.querySelectorAll("[data-log]");
+      const baseLog = [
+        ["03:00:02", "发送端已连接，找到 2026-11-07 批次"],
+        ["03:00:03", "读取清单 SHA256SUMS"],
+        ["03:01:39", "接收 site/ 网站备份"],
+        ["03:07:25", "正在接收 database/ 数据库备份"],
+      ];
+      function addLog(time, message) {
+        logBoxes.forEach((box) => {
+          const line = document.createElement("p");
+          const timestamp = document.createElement("time");
+          timestamp.textContent = time;
+          line.append(timestamp, document.createTextNode(message));
+          box.append(line);
+          box.scrollTop = box.scrollHeight;
+        });
+      }
+      function resetLog() {
+        logBoxes.forEach((box) => box.replaceChildren());
+        baseLog.forEach(([time, message]) => addLog(time, message));
+      }
+      function setBadge(element, text, kind = "") {
+        element.textContent = text;
+        element.className = `tag ${kind}`.trim();
+      }
+      function paintProgress(phase = "transfer") {
+        const receiving = phase === "transfer";
+        const complete = phase === "archive";
+        document
+          .querySelectorAll("[data-percent]")
+          .forEach((el) => (el.textContent = `${progress.toFixed(1)}%`));
+        document.querySelectorAll(".progress").forEach((el) => {
+          el.setAttribute("aria-valuenow", progress.toFixed(1));
+          el.firstElementChild.style.width = `${progress}%`;
+        });
+        document
+          .querySelectorAll("[data-bytes]")
+          .forEach((el) => (el.textContent = `${(progress * 0.186).toFixed(2)} / 18.60 GiB`));
+        const seconds = Math.round((((100 - progress) / 100) * 18.6 * 1024) / 23.8);
+        document
+          .querySelectorAll("[data-eta]")
+          .forEach(
+            (el) =>
+              (el.textContent = receiving
+                ? `约 ${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+                : complete
+                  ? "校验通过，已归档"
+                  : "正在核对 SHA256SUMS"),
+          );
+        document
+          .querySelectorAll("[data-phase]")
+          .forEach((el) =>
+            setBadge(el, receiving ? "传输中" : complete ? "已归档" : "校验中", complete ? "good" : ""),
+          );
+        document.querySelector("[data-ongoing]").innerHTML = `${receiving ? "1" : "0"}<span>批</span>`;
+        document.querySelector("[data-metric-speed]").innerHTML =
+          `${receiving ? "23.8" : "0.0"}<span>MiB/s</span>`;
+        setBadge(
+          document.getElementById("step-receive"),
+          receiving ? "进行中" : "已完成",
+          receiving ? "" : "good",
+        );
+        setBadge(
+          document.getElementById("step-verify"),
+          receiving ? "等待" : complete ? "已通过" : "进行中",
+          receiving ? "quiet" : complete ? "good" : "",
+        );
+        setBadge(
+          document.getElementById("step-archive"),
+          complete ? "已归档" : "等待",
+          complete ? "good" : "quiet",
+        );
+      }
+      function runDemo() {
+        const controls = document.querySelectorAll("[data-run]");
+        controls.forEach((button) => (button.disabled = true));
+        progress = 67.4;
+        resetLog();
+        paintProgress();
+        addLog("03:07:30", "继续接收 database/，演示为加速播放");
+        timer = setInterval(() => {
+          progress = Math.min(progress + 4.2, 100);
+          if (progress < 100) {
+            paintProgress();
+            return;
+          }
+          clearInterval(timer);
+          paintProgress("verify");
+          addLog("03:11:49", "数据接收完毕，开始 SHA-256 校验");
+          setTimeout(() => {
+            paintProgress("archive");
+            addLog("03:12:02", "校验通过，日期批次已归档");
+            if (records[0].date !== "2026-11-07")
+              records.unshift({
+                date: "2026-11-07",
+                state: "good",
+                size: "18.6 GiB",
+                duration: "12 分 02 秒",
+                time: "03:12:02",
+                note: "演示批次已完成传输和 SHA-256 校验。",
+              });
+            renderRecords();
+            controls.forEach((button) => (button.disabled = false));
+            showToast("演示完成，已添加一条同步历史。");
+          }, 1100);
+        }, 450);
+      }
+      document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", runDemo));
+      if (!liveMode) {
+        resetLog();
+        paintProgress();
+      }
+
+      const titles = ["接收目录", "连接宝塔", "测试连接"];
+      const nextButton = document.getElementById("setup-next");
+      const previousButton = document.getElementById("setup-prev");
+      const results = document.getElementById("check-results");
+      let setupStep = 0;
+      function displayStep(step) {
+        setupStep = step;
+        document
+          .querySelectorAll("[data-setup]")
+          .forEach((el) => (el.hidden = Number(el.dataset.setup) !== step));
+        document.querySelectorAll("[data-step]").forEach((el) => {
+          if (Number(el.dataset.step) === step) el.setAttribute("aria-current", "step");
+          else el.removeAttribute("aria-current");
+        });
+        document.getElementById("setup-title").textContent = `${step + 1} / 3 · ${titles[step]}`;
+        previousButton.hidden = step === 0;
+        nextButton.textContent = step === 2 ? "完成设置演示" : "下一步";
+        document.getElementById("setup-target").textContent =
+          `接收地址 ${document.getElementById("nas-host").value.trim() || "192.168.1.30（示例）"}:${document.getElementById("ssh-port").value || "2222"}`;
+      }
+      function validateStep() {
+        const inputs = document.querySelectorAll(`[data-setup="${setupStep}"] input`);
+        return Array.from(inputs).every((input) => input.reportValidity());
+      }
+      document
+        .querySelectorAll("[data-step]")
+        .forEach((button) =>
+          button.addEventListener("click", () => displayStep(Number(button.dataset.step))),
+        );
+      previousButton.addEventListener("click", () => displayStep(setupStep - 1));
+      nextButton.addEventListener("click", () => {
+        if (setupStep < 2) {
+          if (validateStep()) displayStep(setupStep + 1);
+          return;
+        }
+        showToast(results.hidden ? "先点击「演示连通性检查」。" : "设置流程演示完成。");
+      });
+      document.getElementById("connection-test").addEventListener("click", () => {
+        results.hidden = false;
+        showToast("示例检查完成。此页面不会连接 NAS。");
+      });
+      document
+        .querySelectorAll("#setup-form input")
+        .forEach((input) => input.addEventListener("input", () => (results.hidden = true)));
+
+      let toastTimer;
+      function showToast(message) {
+        const toast = document.querySelector(".toast");
+        toast.textContent = message;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (toast.hidden = true), 2600);
+      }
+
+      const auth = document.getElementById("auth");
+      const loginForm = document.getElementById("login-form");
+      const loginInput = document.getElementById("login-password");
+      const passwordForm = document.getElementById("password-form");
+      const retentionForm = document.getElementById("retention-form");
+      const retentionInput = document.getElementById("retention-days");
+      const removeKeyButton = document.getElementById("remove-key");
+      let loggedIn = !liveMode;
+      let hasPublicKey = false;
+      let retentionEdited = false;
+      let pathsEdited = false;
+      let sourcesEdited = false;
+      let stateRevision = 0;
+
+      function feedback(id, message = "", isError = false) {
+        const element = document.getElementById(id);
+        element.textContent = message;
+        element.hidden = !message;
+        element.classList.toggle("error", isError);
+      }
+
+      function showLogin(show) {
+        auth.hidden = !show;
+        document.getElementById("sidebar").hidden = show;
+        document.getElementById("console").hidden = show;
+        loginForm.reset();
+        feedback("login-result");
+        if (show) loginInput.focus();
+      }
+
+      async function api(path, method = "GET", body) {
+        const options = { method, cache: "no-store" };
+        if (body !== undefined) {
+          options.headers = { "Content-Type": "application/json" };
+          options.body = JSON.stringify(body);
+        }
+        const response = await fetch(`/api/${path}`, options);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(data.error || `请求失败（HTTP ${response.status}）`);
+          error.status = response.status;
+          throw error;
+        }
+        return data;
+      }
+
+      function signOut() {
+        loggedIn = false;
+        stateRevision++;
+        hasPublicKey = false;
+        resetTelegramSettings();
+        records.splice(0);
+        renderRecords();
+        previousHistory = "";
+        latestLog = "";
+        latestLogId = "";
+        retentionEdited = false;
+        pathsEdited = false;
+        sourcesEdited = false;
+        renderedSourceRules = "";
+        passwordForm.reset();
+        document.getElementById("live-key-form").reset();
+        document.getElementById("paths-form").reset();
+        document.getElementById("sources-form").reset();
+        document.getElementById("manual-sync-form").reset();
+        resetPairCode();
+        manualDateEdited = false;
+        latestManualRequest = null;
+        displayedRun = null;
+        liveActivity = {};
+        pendingRunAction = null;
+        runControlFeedback = null;
+        feedback("manual-sync-result");
+        feedback("sources-result");
+        const detail = document.getElementById("detail");
+        if (detail.open) detail.close();
+        showLogin(true);
+      }
+
+      async function handleForm(form, result, action) {
+        const buttons = form.querySelectorAll("button");
+        form.setAttribute("aria-busy", "true");
+        buttons.forEach((button) => (button.disabled = true));
+        feedback(result);
+        try {
+          await action();
+        } catch (error) {
+          if (liveMode && error.status === 401 && form !== loginForm) signOut();
+          feedback(result, error.message || "请求失败，请稍后再试。", true);
+        } finally {
+          form.removeAttribute("aria-busy");
+          buttons.forEach((button) => (button.disabled = false));
+          updateRemoveKeyButton();
+        }
+      }
+
+      const telegramCard = document.getElementById("telegram-settings");
+      const telegramForm = document.getElementById("telegram-form");
+      const telegramFields = document.getElementById("telegram-fields");
+      const telegramEnabled = document.getElementById("telegram-enabled");
+      const telegramToken = document.getElementById("telegram-token");
+      const telegramChat = document.getElementById("telegram-chat-id");
+      const telegramSave = document.getElementById("telegram-save");
+      const telegramTest = document.getElementById("telegram-test");
+      let savedTelegram = null;
+      let telegramLoading = false;
+      let telegramUnavailable = false;
+      let telegramRetryAt = 0;
+      let telegramGeneration = 0;
+
+      function updateTelegramControls() {
+        const busy = telegramForm.hasAttribute("aria-busy");
+        telegramFields.disabled = !savedTelegram || busy;
+        telegramSave.disabled = !savedTelegram || busy;
+        telegramTest.disabled = busy || !savedTelegram?.has_token || !savedTelegram.chat_id;
+      }
+
+      function resetTelegramSettings() {
+        telegramGeneration++;
+        savedTelegram = null;
+        telegramLoading = false;
+        telegramUnavailable = false;
+        telegramRetryAt = 0;
+        telegramForm.reset();
+        telegramCard.hidden = !liveMode;
+        setBadge(document.getElementById("telegram-badge"), "读取中", "quiet");
+        feedback("telegram-result");
+        updateTelegramControls();
+      }
+
+      function paintTelegramSettings(data) {
+        if (
+          typeof data.enabled !== "boolean" ||
+          typeof data.chat_id !== "string" ||
+          typeof data.has_token !== "boolean"
+        ) {
+          throw new Error("接收端返回了无法识别的 Telegram 设置。");
+        }
+        savedTelegram = { enabled: data.enabled, chat_id: data.chat_id, has_token: data.has_token };
+        telegramEnabled.checked = data.enabled;
+        telegramChat.value = data.chat_id;
+        telegramToken.value = "";
+        document.getElementById("telegram-token-note").textContent = data.has_token
+          ? "已保存 Bot Token。留空会保留它，输入新 Token 可替换。"
+          : "请输入从 BotFather 获得的 Bot Token。";
+        setBadge(
+          document.getElementById("telegram-badge"),
+          data.enabled ? "已启用" : "已关闭",
+          data.enabled ? "good" : "quiet",
+        );
+        updateTelegramControls();
+      }
+
+      async function loadTelegramSettings() {
+        if (savedTelegram || telegramLoading || telegramUnavailable || Date.now() < telegramRetryAt) return;
+        telegramLoading = true;
+        const generation = telegramGeneration;
+        try {
+          const settings = await api("telegram");
+          if (generation !== telegramGeneration) return;
+          paintTelegramSettings(settings);
+          feedback("telegram-result");
+        } catch (error) {
+          if (generation !== telegramGeneration) return;
+          if (error.status === 404) {
+            telegramUnavailable = true;
+            telegramCard.hidden = true;
+            return;
+          }
+          telegramRetryAt = Date.now() + 5000;
+          setBadge(document.getElementById("telegram-badge"), "读取失败", "bad");
+          feedback("telegram-result", error.message || "无法读取 Telegram 设置，稍后自动重试。", true);
+        } finally {
+          if (generation === telegramGeneration) telegramLoading = false;
+        }
+      }
+
+      telegramForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (telegramSave.disabled) return;
+        const generation = telegramGeneration;
+        const input = {
+          enabled: telegramEnabled.checked,
+          chat_id: telegramChat.value.trim(),
+          token: telegramToken.value.trim(),
+        };
+        await handleForm(telegramForm, "telegram-result", async () => {
+          if ((input.enabled || input.chat_id) && !/^-?[0-9]+$/.test(input.chat_id))
+            throw new Error("请填写数字 Chat ID。群组 ID 可带负号。");
+          if (input.enabled && !input.token && !savedTelegram.has_token)
+            throw new Error("启用通知前，请填写 Bot Token。");
+          updateTelegramControls();
+          const settings = await api("telegram", "POST", input);
+          if (generation !== telegramGeneration) return;
+          paintTelegramSettings(settings);
+          feedback("telegram-result", "Telegram 通知设置已保存。");
+        });
+        updateTelegramControls();
+      });
+
+      telegramTest.addEventListener("click", async () => {
+        if (telegramTest.disabled) return;
+        const generation = telegramGeneration;
+        await handleForm(telegramForm, "telegram-result", async () => {
+          updateTelegramControls();
+          feedback("telegram-result", "正在向已保存的 Chat ID 发送测试消息…");
+          const result = await api("telegram/test", "POST", {});
+          if (generation !== telegramGeneration) return;
+          if (result.ok !== true) throw new Error(result.error || "测试消息发送失败。");
+          feedback("telegram-result", "测试消息已发送，请在 Telegram 查看。");
+        });
+        updateTelegramControls();
+      });
+
+      loginForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleForm(loginForm, "login-result", async () => {
+          if (liveMode) await api("login", "POST", { password: loginInput.value });
+          loggedIn = true;
+          showLogin(false);
+          if (liveMode) {
+            navigate();
+            await refreshState();
+          } else showToast("登录界面演示完成。");
+        });
+      });
+      document.getElementById("preview-login").addEventListener("click", () => showLogin(true));
+      document.getElementById("back-to-demo").addEventListener("click", () => showLogin(false));
+      async function logout() {
+        try {
+          await api("logout", "POST");
+          signOut();
+        } catch (error) {
+          if (error.status === 401) signOut();
+          else showToast(error.message);
+        }
+      }
+      document.getElementById("logout").addEventListener("click", logout);
+      document.getElementById("settings-logout").addEventListener("click", logout);
+      passwordForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleForm(passwordForm, "password-result", async () => {
+          if (liveMode) {
+            await api("password", "POST", {
+              current_password: document.getElementById("current-password").value,
+              new_password: document.getElementById("new-password").value,
+            });
+          }
+          passwordForm.reset();
+          feedback("password-result", liveMode ? "密码已修改。" : "已演示修改流程，真实密码未改变。");
+        });
+      });
+
+      function renderRetention(days, lastCleanup, cleanupError) {
+        if (!retentionEdited) retentionInput.value = days;
+        const summary = days ? `保留 ${days} 天` : "自动清理已关闭";
+        document.querySelectorAll("[data-retention-summary]").forEach((el) => (el.textContent = summary));
+        setBadge(document.getElementById("retention-badge"), summary, days ? "good" : "quiet");
+        if (liveMode) {
+          const cleanup = document.getElementById("last-cleanup");
+          cleanup.textContent = cleanupError
+            ? `上次清理遇到问题 · ${cleanupError}`
+            : lastCleanup
+              ? `上次检查 · ${beijingDay(lastCleanup)} ${beijingTime(lastCleanup)}`
+              : "还没有清理检查记录。";
+        }
+      }
+      retentionInput.addEventListener("input", () => (retentionEdited = true));
+      retentionForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleForm(retentionForm, "retention-result", async () => {
+          const days = retentionInput.valueAsNumber;
+          if (liveMode) await api("retention", "POST", { days });
+          else {
+            try {
+              localStorage.setItem("bz-rsync-demo-days", String(days));
+            } catch {}
+          }
+          retentionEdited = false;
+          renderRetention(days);
+          feedback("retention-result", liveMode ? "已保存保留策略。" : "保留策略已保存到本地预览。");
+          if (liveMode) await refreshState();
+        });
+      });
+
+      const keyForm = document.getElementById("live-key-form");
+      const keyInput = document.getElementById("public-key");
+      function updateRemoveKeyButton() {
+        removeKeyButton.disabled = !hasPublicKey || keyForm.hasAttribute("aria-busy");
+      }
+      keyForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleForm(keyForm, "key-result", async () => {
+          await api("key", "POST", { key: keyInput.value.trim() });
+          keyForm.reset();
+          feedback("key-result", "公钥已保存。请从宝塔发送端发起连接测试。");
+          await refreshState();
+        });
+      });
+      removeKeyButton.addEventListener("click", () => {
+        handleForm(keyForm, "key-result", async () => {
+          await api("key", "DELETE");
+          feedback("key-result", "发送端配对已解除。");
+          await refreshState();
+        });
+      });
+
+      const pairCodeForm = document.getElementById("pair-code-form");
+      const pairCodeHost = document.getElementById("pair-code-host");
+      const pairCodeReplace = document.getElementById("pair-code-replace");
+      const pairCodeValue = document.getElementById("pair-code-value");
+      const pairCodeCreate = document.getElementById("pair-code-create");
+      const pairCodeRevoke = document.getElementById("pair-code-revoke");
+      let currentPairCode;
+      let pairHostEdited = false;
+      let issuedPairExpiry = "";
+      let pairExpiryTimer;
+
+      function clearIssuedPairCode() {
+        clearTimeout(pairExpiryTimer);
+        pairCodeValue.value = "";
+        issuedPairExpiry = "";
+        document.getElementById("pair-code-output").hidden = true;
+      }
+
+      function resetPairCode() {
+        clearIssuedPairCode();
+        pairCodeForm.reset();
+        currentPairCode = undefined;
+        pairHostEdited = false;
+        feedback("pair-code-result");
+      }
+
+      function updatePairCodeControls() {
+        const active = currentPairCode?.active === true;
+        const busy = pairCodeForm.hasAttribute("aria-busy");
+        pairCodeHost.disabled = active || busy;
+        pairCodeReplace.disabled = active || busy;
+        pairCodeCreate.disabled = active || busy || (hasPublicKey && !pairCodeReplace.checked);
+        pairCodeRevoke.hidden = !active;
+        pairCodeRevoke.disabled = busy;
+      }
+
+      function paintPairCode(view, sshPort) {
+        currentPairCode = view;
+        const available = typeof view?.active === "boolean";
+        document.getElementById("pair-code-panel").hidden = !available;
+        if (!available) {
+          clearIssuedPairCode();
+          return;
+        }
+
+        const active = view.active;
+        const expires = view.expires_at;
+        if (!active || (issuedPairExpiry && Date.parse(issuedPairExpiry) !== Date.parse(expires))) {
+          clearIssuedPairCode();
+        }
+        const showsCode = active && Boolean(pairCodeValue.value);
+        document.getElementById("pair-code-output").hidden = !showsCode;
+        const usableHost = (host) =>
+          host && !["0.0.0.0", "::", "[::]", "localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+        if (!pairHostEdited) {
+          pairCodeHost.value = [view.host, location.hostname].find(usableHost) || "";
+        }
+        document.getElementById("pair-code-port").textContent = view.port || sshPort || "—";
+        document.getElementById("pair-replace-label").hidden = !hasPublicKey;
+        if (!hasPublicKey) pairCodeReplace.checked = false;
+
+        const badge = document.getElementById("pair-code-badge");
+        const label = active ? "配对码有效" : "可生成";
+        if (badge.textContent !== label) setBadge(badge, label, active ? "good" : "quiet");
+        const expiryText = expires ? `有效至 ${beijingDay(expires)} ${beijingTime(expires)}（北京时间）。` : "";
+        const hint = active && !showsCode ? "配对码只在生成时显示。可撤销后重新生成。" : "";
+        const status = document.getElementById("pair-code-status");
+        const message = active ? expiryText + hint : "";
+        if (status.textContent !== message) feedback("pair-code-status", message);
+        updatePairCodeControls();
+      }
+
+      pairCodeHost.addEventListener("input", () => (pairHostEdited = true));
+      pairCodeReplace.addEventListener("change", updatePairCodeControls);
+      pairCodeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (pairCodeCreate.disabled) return;
+        const host = pairCodeHost.value.trim();
+        const replace = hasPublicKey && pairCodeReplace.checked;
+        await handleForm(pairCodeForm, "pair-code-result", async () => {
+          updatePairCodeControls();
+          const result = await api("pair-code", "POST", { host, replace });
+          if (!result.code || !result.expires_at) throw new Error("接收端未返回有效配对码。");
+          clearIssuedPairCode();
+          pairCodeValue.value = result.code;
+          issuedPairExpiry = result.expires_at;
+          pairCodeReplace.checked = false;
+          paintPairCode({ ...currentPairCode, active: true, host, expires_at: issuedPairExpiry });
+          pairExpiryTimer = setTimeout(
+            () => {
+              clearIssuedPairCode();
+              paintPairCode({ ...currentPairCode, active: false });
+            },
+            Math.max(0, Date.parse(issuedPairExpiry) - Date.now()),
+          );
+          await refreshState();
+        });
+        updatePairCodeControls();
+      });
+      pairCodeRevoke.addEventListener("click", async () => {
+        if (!currentPairCode?.active || pairCodeForm.hasAttribute("aria-busy")) return;
+        await handleForm(pairCodeForm, "pair-code-result", async () => {
+          updatePairCodeControls();
+          await api("pair-code", "DELETE");
+          paintPairCode({ ...currentPairCode, active: false });
+          await refreshState();
+          feedback("pair-code-result", "配对码已撤销。");
+        });
+        updatePairCodeControls();
+      });
+      document.getElementById("pair-code-copy").addEventListener("click", async () => {
+        if (!pairCodeValue.value) return;
+        try {
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(pairCodeValue.value);
+            showToast("已复制配对码。");
+            return;
+          }
+        } catch {}
+        pairCodeValue.focus();
+        pairCodeValue.select();
+        if (document.execCommand?.("copy")) showToast("已复制配对码。");
+        else showToast("已选中配对码，请按 Ctrl+C 复制。");
+      });
+
+      const pathsForm = document.getElementById("paths-form");
+      const siteDirInput = document.getElementById("site-dir");
+      const databaseDirInput = document.getElementById("database-dir");
+      const sourceCommand = document.getElementById("source-command");
+      const defaultSourceCommand = sourceCommand.value;
+      pathsForm.addEventListener("input", () => (pathsEdited = true));
+      pathsForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleForm(pathsForm, "paths-result", async () => {
+          const site_dir = siteDirInput.value.trim();
+          const database_dir = databaseDirInput.value.trim();
+          const directoryName = /^[\p{L}\p{N}][\p{L}\p{N}_-]{0,63}$/u;
+          if (
+            !directoryName.test(site_dir) ||
+            !directoryName.test(database_dir) ||
+            site_dir.toLowerCase() === database_dir.toLowerCase()
+          ) {
+            throw new Error("请输入两个不同的单级目录名，以字母或数字开头，最多 64 个字符。");
+          }
+          await api("paths", "POST", { site_dir, database_dir });
+          pathsEdited = false;
+          await refreshState();
+          feedback("paths-result", "已保存 NAS 归档路径。后续日期批次使用新目录。");
+        });
+      });
+      document.getElementById("copy-source-command").addEventListener("click", async () => {
+        try {
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(sourceCommand.value);
+            showToast("已复制宝塔设置命令。");
+            return;
+          }
+        } catch {}
+        sourceCommand.focus();
+        sourceCommand.select();
+        if (document.execCommand?.("copy")) showToast("已复制宝塔设置命令。");
+        else showToast("已选中命令，请按 Ctrl+C 复制。");
+      });
+
+      function showSourceList(id, sources) {
+        const list = document.getElementById(id);
+        const paths = Array.isArray(sources)
+          ? sources.map((source) => (typeof source === "string" ? source : source?.directory)).filter(Boolean)
+          : [];
+        if (!paths.length) paths.push("尚未登记来源目录");
+        const key = JSON.stringify(paths);
+        if (list.dataset.value === key) return;
+        list.dataset.value = key;
+        list.replaceChildren(
+          ...paths.map((path) => {
+            const item = document.createElement("li");
+            item.textContent = path;
+            return item;
+          }),
+        );
+      }
+
+      function paintPaths(paths, splitLayout) {
+        const editable = paths?.editable === true;
+        const backupRoot = paths?.backup_root;
+        const destination = (fullPath, subdir) => {
+          const base =
+            fullPath || (backupRoot && subdir ? `${backupRoot.replace(/\/+$/, "")}/${subdir}` : "");
+          return base ? (splitLayout ? `${base.replace(/\/+$/, "")}/YYYYMMDD` : base) : "—";
+        };
+        document.getElementById("backup-root").textContent =
+          backupRoot === "/backups"
+            ? "/backups（容器内路径。宿主机路径见NAS Docker 的卷映射）"
+            : backupRoot || "接收端尚未提供宿主机路径";
+        document.getElementById("site-destination").textContent = destination(
+          paths?.site_path,
+          paths?.site_dir,
+        );
+        document.getElementById("database-destination").textContent = destination(
+          paths?.database_path,
+          paths?.database_dir,
+        );
+        document.getElementById("live-layout").textContent =
+          backupRoot || (splitLayout ? "网站与数据库独立归档" : "容器接收数据卷");
+        setBadge(
+          document.getElementById("paths-badge"),
+          editable ? "网页可编辑" : "部署配置",
+          editable ? "good" : "quiet",
+        );
+        pathsForm.hidden = !editable;
+        document.getElementById("paths-readonly").hidden = editable;
+        if (!pathsEdited) {
+          siteDirInput.value = paths?.site_dir || "";
+          databaseDirInput.value = paths?.database_dir || "";
+        }
+        const sourceMode = paths?.source_mode;
+        const sourceLabel =
+          sourceMode === "direct"
+            ? "直接读取宝塔备份目录"
+            : sourceMode === "outbox"
+              ? "从宝塔暂存批次发送"
+              : "来源目录由宝塔发送端配置";
+        document.getElementById("live-source-mode").textContent = sourceLabel;
+        const sourceRoot = document.getElementById("paths-source-root");
+        sourceRoot.hidden = !paths?.source_root;
+        sourceRoot.textContent = paths?.source_root ? `发送端暂存目录 · ${paths.source_root}` : "";
+        showSourceList("site-sources", paths?.site_sources);
+        showSourceList("database-sources", paths?.database_sources);
+        sourceCommand.value = paths?.source_command || defaultSourceCommand;
+      }
+
+      const sourcesForm = document.getElementById("sources-form");
+      const sourcesFields = document.getElementById("sources-fields");
+      const sourceModeSelect = document.getElementById("source-mode");
+      const directFields = document.getElementById("source-direct-fields");
+      const sourceRowTemplate = document.getElementById("source-row-template");
+      const sourceGroups = {
+        website: { label: "网站", root: "/www/backup/site", pattern: "*{date_compact}*.tar.gz" },
+        database: { label: "数据库", root: "/www/backup/database", pattern: "*{date}*.sql.gz" },
+      };
+      let renderedSourceRules = "";
+      let savedSourceRules = { website_sources: [], database_sources: [] };
+
+      function sourceRows(group) {
+        return document.getElementById(`${group}-source-rows`);
+      }
+
+      function addSourceRow(group, rule = {}) {
+        const definition = sourceGroups[group];
+        const row = sourceRowTemplate.content.firstElementChild.cloneNode(true);
+        const directory = row.querySelector('[name="directory"]');
+        const pattern = row.querySelector('[name="pattern"]');
+        directory.placeholder = definition.root;
+        directory.value = rule.directory || "";
+        pattern.placeholder = definition.pattern;
+        pattern.value = rule.pattern || "";
+        row.querySelector("[data-remove-source]").setAttribute("aria-label", `移除${definition.label}目录`);
+        sourceRows(group).append(row);
+        return directory;
+      }
+
+      function syncSourceMode() {
+        const direct = sourceModeSelect.value === "direct";
+        directFields.hidden = !direct;
+        directFields.querySelectorAll("fieldset").forEach((group) => (group.disabled = !direct));
+      }
+
+      function readSourceRules(group) {
+        const { label, pattern: defaultPattern } = sourceGroups[group];
+        const rows = [...sourceRows(group).children];
+        if (!rows.length) throw new Error(`请至少添加一个${label}备份目录。`);
+        return rows.map((row) => {
+          const directory = row.querySelector('[name="directory"]').value.trim().replace(/\/+$/, "");
+          const pattern = row.querySelector('[name="pattern"]').value.trim() || defaultPattern;
+          const validComponents = directory
+            .split("/")
+            .slice(1)
+            .every((name) => name && name !== "." && name !== "..");
+          if (!directory.startsWith("/") || !validComponents)
+            throw new Error(`请填写宝塔端的${label}绝对目录，路径不能含有 . 或 ..。`);
+          if (!/\{date(?:_compact)?\}/.test(pattern))
+            throw new Error(`${label}的文件名匹配式须包含 {date} 或 {date_compact}。`);
+          return { directory, pattern };
+        });
+      }
+
+      sourcesForm.addEventListener("input", () => (sourcesEdited = true));
+      sourceModeSelect.addEventListener("change", syncSourceMode);
+      sourcesForm.addEventListener("click", (event) => {
+        const add = event.target.closest("[data-add-source]");
+        const remove = event.target.closest("[data-remove-source]");
+        if (add) {
+          sourcesEdited = true;
+          addSourceRow(add.dataset.addSource).focus();
+        } else if (remove) {
+          sourcesEdited = true;
+          const group = remove.closest("[data-source-group]");
+          remove.closest(".source-row").remove();
+          group.querySelector("[data-add-source]").focus();
+        }
+      });
+
+      sourcesForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleForm(sourcesForm, "sources-result", async () => {
+          const source_mode = sourceModeSelect.value;
+          const rules =
+            source_mode === "direct"
+              ? {
+                  website_sources: readSourceRules("website"),
+                  database_sources: readSourceRules("database"),
+                }
+              : savedSourceRules;
+          sourcesFields.disabled = true;
+          try {
+            await api("sources", "POST", { source_mode, ...rules });
+            sourcesEdited = false;
+            await refreshState();
+            feedback("sources-result", "来源已保存到 NAS。请查看上方的宝塔应用状态。");
+          } finally {
+            sourcesFields.disabled = false;
+          }
+        });
+      });
+
+      function sourceRuleArray(rules) {
+        return Array.isArray(rules) ? rules : [];
+      }
+
+      function populateSourceRows(group, rules, fallback) {
+        sourceRows(group).replaceChildren();
+        const examples = sourceRuleArray(fallback).map((directory) => ({ directory }));
+        const shown = rules.length
+          ? rules
+          : examples.length
+            ? examples
+            : [{ directory: sourceGroups[group].root }];
+        shown.forEach((rule) => addSourceRow(group, rule));
+      }
+
+      function paintSources(sources, paths) {
+        const available = Number.isInteger(sources?.revision);
+        sourcesForm.hidden = !available;
+        document.getElementById("sources-legacy").hidden = available;
+        const badge = document.getElementById("source-apply-badge");
+        const status = document.getElementById("paths-source-mode");
+        if (!available) {
+          setBadge(badge, "在宝塔端配置", "quiet");
+          if (status.textContent !== "来源目录由宝塔发送端配置。")
+            status.textContent = "来源目录由宝塔发送端配置。";
+          return;
+        }
+
+        const revision = sources.revision;
+        const mode = sources.source_mode === "direct" ? "direct" : "outbox";
+        savedSourceRules = {
+          website_sources: sourceRuleArray(sources.website_sources),
+          database_sources: sourceRuleArray(sources.database_sources),
+        };
+        const settingsKey = JSON.stringify([revision, mode, savedSourceRules]);
+        if (!sourcesEdited && settingsKey !== renderedSourceRules) {
+          renderedSourceRules = settingsKey;
+          sourceModeSelect.value = mode;
+          populateSourceRows(
+            "website",
+            savedSourceRules.website_sources,
+            revision === 0 ? paths?.site_sources : [],
+          );
+          populateSourceRows(
+            "database",
+            savedSourceRules.database_sources,
+            revision === 0 ? paths?.database_sources : [],
+          );
+          syncSourceMode();
+        }
+
+        const states = {
+          pending: ["等待宝塔应用", "warn", `第 ${revision} 版已保存，等待宝塔发送端领取。`],
+          applied: ["宝塔已应用", "good", `宝塔发送端已应用第 ${revision} 版设置。`],
+          failed: [
+            "宝塔应用失败",
+            "bad",
+            `宝塔发送端未能应用第 ${revision} 版设置。${sources.apply_error || "请检查发送端日志。"}`,
+          ],
+        };
+        const [title, tone, message] =
+          revision > 0
+            ? states[sources.apply_status] || states.pending
+            : ["尚未保存网页设置", "quiet", "宝塔继续使用现有发送端配置。保存后才会下发网页设置。"];
+        setBadge(badge, title, tone);
+        const applied = sources.applied_revision > 0 ? ` 已应用版本 ${sources.applied_revision}。` : "";
+        const checked = sources.checked_at
+          ? ` 最近检查 ${beijingDay(sources.checked_at)} ${beijingTime(sources.checked_at)}。`
+          : "";
+        const statusText = message + applied + checked;
+        if (status.textContent !== statusText) status.textContent = statusText;
+        if (revision > 0) {
+          document.getElementById("live-source-mode").textContent =
+            sources.apply_status === "applied"
+              ? mode === "direct"
+                ? "直接读取宝塔备份目录"
+                : "从宝塔暂存批次发送"
+              : title;
+        }
+      }
+
+      const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      });
+      function beijingDay(value) {
+        const date = new Date(value || NaN);
+        if (!Number.isFinite(+date)) return "";
+        const parts = Object.fromEntries(
+          dateFormatter.formatToParts(date).map(({ type, value }) => [type, value]),
+        );
+        return `${parts.year}-${parts.month}-${parts.day}`;
+      }
+      function beijingTime(value) {
+        const date = new Date(value || NaN);
+        return Number.isFinite(+date) ? timeFormatter.format(date) : "—";
+      }
+      function beijingTimestamp(value) {
+        const day = beijingDay(value);
+        return day ? `${day} ${beijingTime(value)}` : "—";
+      }
+      function formatBytes(bytes) {
+        if (!Number.isFinite(bytes)) return "—";
+        if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
+        if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+        if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+        return `${bytes} B`;
+      }
+      function formatDuration(started, ended) {
+        const elapsed = Math.max(0, Math.round((Date.parse(ended) - Date.parse(started)) / 1000));
+        return Number.isFinite(elapsed) ? `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒` : "—";
+      }
+      function eventList(run) {
+        return Array.isArray(run?.events)
+          ? run.events.filter((event) => event && typeof event.line === "string")
+          : [];
+      }
+      function runActivityAt(run) {
+        const timestamps = [
+          run.started,
+          run.updated,
+          run.ended,
+          ...eventList(run).map((event) => event.time),
+        ];
+        return timestamps.reduce((latest, timestamp) => Math.max(latest, Date.parse(timestamp) || 0), 0);
+      }
+      function daysAgo(days) {
+        const midnight = new Date(`${beijingDay(new Date())}T00:00:00Z`);
+        midnight.setUTCDate(midnight.getUTCDate() - days);
+        return midnight.toISOString().slice(0, 10);
+      }
+      function updateLiveTrend(successes) {
+        for (const size of [7, 30]) {
+          const count = size === 7 ? 7 : 5;
+          const step = size / count;
+          const labels = [];
+          const values = [];
+          for (let index = 0; index < count; index++) {
+            const start = daysAgo(size - 1 - index * step);
+            const end = daysAgo(size - (index + 1) * step);
+            labels.push(end.slice(5).replace("-", "/"));
+            const bytes = successes.reduce((sum, run) => {
+              const day = beijingDay(run.ended);
+              return day >= start && day <= end ? sum + (run.total_bytes || run.bytes || 0) : sum;
+            }, 0);
+            values.push(bytes / 1024 ** 3);
+          }
+          trend[String(size)] = { labels, values, max: Math.max(3, Math.ceil(Math.max(...values) / 3) * 3) };
+        }
+        drawChart(currentRange);
+      }
+
+      let latestLog = "";
+      let latestLogId = "";
+      function renderLiveLog(run, confirmation) {
+        const events = confirmation
+          ? [{ time: confirmation.checked_at, line: `定时复核通过，${confirmation.day} 批次已入库。` }]
+          : eventList(run);
+        const logId = run?.id || (confirmation ? `confirmation:${confirmation.day}` : "");
+        const logKey = JSON.stringify([logId, events]);
+        if (logKey === latestLog) return;
+        const changedRun = latestLogId !== logId;
+        latestLog = logKey;
+        latestLogId = logId;
+        logBoxes.forEach((box) => {
+          const scrollPosition = box.scrollTop;
+          const atBottom = box.scrollHeight - box.clientHeight - scrollPosition <= 12;
+          const messages = events.map((event) => {
+            const line = document.createElement("p");
+            const time = document.createElement("time");
+            time.dateTime = event.time || "";
+            time.textContent = beijingTimestamp(event.time);
+            line.append(time, document.createTextNode(event.line));
+            return line;
+          });
+          if (!messages.length) {
+            const line = document.createElement("p");
+            line.textContent = run ? "等待发送端事件。" : "今天暂无同步日志。历史记录可在同步历史查看。";
+            messages.push(line);
+          }
+          box.replaceChildren(...messages);
+          box.scrollTop = changedRun || atBottom ? box.scrollHeight : scrollPosition;
+        });
+      }
+
+      const runControlPanels = document.querySelectorAll("[data-run-controls]");
+      let displayedRun = null;
+      let pendingRunAction = null;
+      let runControlFeedback = null;
+      const runControlHelp =
+        "暂停会保留已接收的暂存数据，继续时可续传。取消会永久删除本次未完成批次在 NAS 上的暂存文件。";
+      runControlPanels.forEach((panel) => {
+        panel.innerHTML = `<div class="toolbar" data-run-actions>
+          <button class="btn" type="button" data-run-action="pause">暂停</button>
+          <button class="btn primary" type="button" data-run-action="resume">继续同步</button>
+          <button class="btn danger-btn" type="button" data-run-action="cancel">取消同步</button>
+        </div><p class="muted" data-run-action-note></p><p class="form-feedback error" data-run-action-result role="status" hidden></p>`;
+      });
+
+      function pendingRunControl(run) {
+        if (!run) return "";
+        return run.control || (pendingRunAction?.id === run.id ? pendingRunAction.action : "");
+      }
+
+      function isRunResuming(run) {
+        if (run?.status !== "paused" || !manualActive()) return false;
+        return latestManualRequest.resume_id
+          ? latestManualRequest.resume_id === run.id
+          : latestManualRequest.day === run.day;
+      }
+
+      function paintRunControls(run) {
+        displayedRun = run;
+        const transferring = run?.status === "transferring";
+        const paused = run?.status === "paused";
+        const cancelled = run?.status === "cancelled";
+        const canControl = Boolean(run?.id) && (transferring || paused);
+        const pending = pendingRunControl(run);
+        const resuming = isRunResuming(run);
+        const result = run && runControlFeedback?.id === run.id ? runControlFeedback.message : "";
+        const notes = {
+          pause: "暂停请求正在处理。宝塔停止当前传输后，已接收的暂存数据会保留。",
+          cancel: "取消请求正在处理。传输停止后将删除本次未完成批次的 NAS 暂存文件。",
+          resume: "正在等待宝塔领取续传任务。",
+        };
+        const note = cancelled
+          ? "需要重新同步时，请在总览发起新的手动同步。"
+          : notes[pending] || (resuming ? notes.resume : canControl ? runControlHelp : "");
+        runControlPanels.forEach((panel) => {
+          panel.hidden = !(canControl || cancelled || result);
+          panel.querySelector("[data-run-actions]").hidden = !canControl;
+          const pause = panel.querySelector('[data-run-action="pause"]');
+          const resume = panel.querySelector('[data-run-action="resume"]');
+          const cancel = panel.querySelector('[data-run-action="cancel"]');
+          pause.hidden = !transferring;
+          resume.hidden = !paused;
+          const blocked = !canControl || Boolean(pendingRunAction || pending);
+          pause.disabled = blocked;
+          resume.disabled = blocked || resuming;
+          cancel.disabled = blocked;
+          const noteElement = panel.querySelector("[data-run-action-note]");
+          noteElement.hidden = !note;
+          if (noteElement.textContent !== note) noteElement.textContent = note;
+          const resultElement = panel.querySelector("[data-run-action-result]");
+          resultElement.hidden = !result;
+          if (resultElement.textContent !== result) resultElement.textContent = result;
+        });
+      }
+
+      function reconcileRunAction(runs) {
+        if (!pendingRunAction?.accepted) return;
+        const { id, action, status } = pendingRunAction;
+        const run = runs.find((entry) => entry.id === id);
+        if (
+          !run ||
+          run.status !== status ||
+          run.control === action ||
+          (action === "resume" && isRunResuming(run))
+        ) {
+          pendingRunAction = null;
+        }
+      }
+
+      runControlPanels.forEach((panel) =>
+        panel.addEventListener("click", async (event) => {
+          const button = event.target.closest("[data-run-action]");
+          const run = displayedRun;
+          if (!button || button.disabled || !run?.id) return;
+          const action = button.dataset.runAction;
+          if (
+            action === "cancel" &&
+            !window.confirm("取消后，本次未完成批次的 NAS 暂存文件将永久删除。确定取消同步吗？")
+          )
+            return;
+          const request = { id: run.id, action, status: run.status, accepted: false };
+          pendingRunAction = request;
+          runControlFeedback = null;
+          paintLiveRun(run);
+          try {
+            const result = await api("run-action", "POST", { id: request.id, action });
+            if (pendingRunAction !== request) return;
+            request.accepted = true;
+            if (result.manual_sync) paintManualRequest(result.manual_sync);
+            await refreshState();
+          } catch (error) {
+            if (pendingRunAction !== request) return;
+            pendingRunAction = null;
+            if (error.status === 401) {
+              signOut();
+              return;
+            }
+            runControlFeedback = { id: request.id, message: error.message || "请求失败，请稍后再试。" };
+            paintSelectedLiveActivity();
+            await refreshState();
+          }
+        }),
+      );
+
+      function paintLiveRun(run, confirmation = null) {
+        const status = run?.status;
+        const confirmed = Boolean(confirmation);
+        const receiving = status === "transferring";
+        const verifying = status === "verifying";
+        const done = status === "success";
+        const failed = status === "failed";
+        const paused = status === "paused";
+        const cancelled = status === "cancelled";
+        const batchDay = run?.day || confirmation?.day;
+        const percentage =
+          done || verifying
+            ? 100
+            : Number.isFinite(run?.percent)
+              ? Math.max(0, Math.min(100, run.percent))
+              : null;
+        const labels = {
+          transferring: run?.total_bytes > 0 ? "传输中" : "准备中",
+          verifying: "校验中",
+          success: "已归档",
+          failed: "同步失败",
+          paused: "已暂停",
+          cancelled: "已取消",
+        };
+        const pending = pendingRunControl(run);
+        const pendingLabels = { pause: "等待暂停", resume: "等待续传", cancel: "正在取消" };
+        const transition =
+          (receiving || paused) && (pendingLabels[pending] || (isRunResuming(run) && pendingLabels.resume));
+        const phaseLabel = confirmed ? "定时复核 · 已入库" : transition || labels[status] || "等待同步";
+        const phaseKind =
+          transition || paused
+            ? "warn"
+            : done || confirmed
+              ? "good"
+              : failed
+                ? "bad"
+                : cancelled || !run
+                  ? "quiet"
+                  : "";
+        const runTime = confirmed ? confirmation.checked_at : run?.started || run?.updated;
+        const historical = paused && beijingDay(runActivityAt(run)) !== daysAgo(0) ? "历史暂停任务 · " : "";
+        const caption = batchDay
+          ? `${historical}批次日期 ${batchDay} · ${confirmed ? "复核时间" : "执行时间"} ${beijingTimestamp(runTime)}（北京时间）`
+          : "等待宝塔发送端发起同步";
+        document.querySelector("[data-run-name]").textContent = confirmed ? "定时复核" : "宝塔每日备份";
+        document.querySelector("[data-run-caption]").textContent = caption;
+        document.querySelector("[data-task-caption]").textContent = caption;
+        document.querySelector("[data-run-date]").textContent = confirmed
+          ? "定时复核"
+          : batchDay
+            ? `${batchDay} 批次`
+            : "暂无当日任务";
+        document.querySelectorAll("[data-phase]").forEach((el) => setBadge(el, phaseLabel, phaseKind));
+        document.querySelectorAll("[data-percent]").forEach((el) => {
+          el.hidden = !run;
+          el.textContent = percentage === null ? "—" : `${percentage.toFixed(1)}%`;
+        });
+        document.querySelectorAll(".progress").forEach((el) => {
+          el.hidden = !run;
+          if (percentage === null) el.removeAttribute("aria-valuenow");
+          else el.setAttribute("aria-valuenow", percentage);
+          el.setAttribute("aria-label", "批次传输进度");
+          el.firstElementChild.style.width = `${percentage ?? 0}%`;
+        });
+        document
+          .querySelectorAll("[data-bytes]")
+          .forEach(
+            (el) =>
+              (el.textContent = run
+                ? `${formatBytes(run.bytes)} / ${run.total_bytes ? formatBytes(run.total_bytes) : "—"}`
+                : "等待批次数据"),
+          );
+        const estimates = {
+          transferring: [run?.speed, run?.eta && `预计剩余 ${run.eta}`].filter(Boolean).join(" · "),
+          success: "校验通过，已归档",
+          failed: "请查看下方事件",
+          verifying: "正在核对 SHA256SUMS",
+          paused: "已接收的暂存数据已保留",
+          cancelled: "本次未完成的暂存文件已清理",
+        };
+        const estimate = transition ? "" : estimates[status] || "";
+        document.querySelectorAll("[data-eta]").forEach((el) => (el.textContent = estimate));
+        document.querySelectorAll(".prog-meta").forEach((el) => (el.hidden = !run));
+        document.getElementById("run-progress-note").hidden = !run;
+        document.getElementById("run-workflow").hidden = confirmed;
+        setBadge(document.getElementById("step-prepare"), run ? "已就绪" : "等待", run ? "good" : "quiet");
+        setBadge(
+          document.getElementById("step-receive"),
+          receiving
+            ? "进行中"
+            : verifying || done
+              ? "已完成"
+              : paused
+                ? "已暂停"
+                : cancelled
+                  ? "已取消"
+                  : failed
+                    ? "已停止"
+                    : "等待",
+          receiving ? "" : verifying || done ? "good" : paused ? "warn" : "quiet",
+        );
+        setBadge(
+          document.getElementById("step-verify"),
+          done ? "已通过" : verifying ? "进行中" : "等待",
+          done ? "good" : verifying ? "" : "quiet",
+        );
+        setBadge(document.getElementById("step-archive"), done ? "已归档" : "等待", done ? "good" : "quiet");
+        paintRunControls(run);
+        renderLiveLog(run, confirmation);
+      }
+
+      let liveActivity = {};
+      function paintSelectedLiveActivity() {
+        const tasksOpen = !document.querySelector('[data-page="tasks"]').hidden;
+        const run = tasksOpen ? liveActivity.taskRun : liveActivity.dashboardRun;
+        paintLiveRun(run, run ? null : liveActivity.confirmation);
+      }
+
+      if (liveMode) {
+        window.addEventListener("hashchange", () => {
+          paintSelectedLiveActivity();
+          const visibleLog = document.querySelector("[data-page]:not([hidden]) [data-log]");
+          if (visibleLog) visibleLog.scrollTop = visibleLog.scrollHeight;
+        });
+      }
+
+      let previousHistory = "";
+      const manualForm = document.getElementById("manual-sync-form");
+      const manualDay = document.getElementById("manual-sync-day");
+      const manualSubmit = document.getElementById("manual-sync-submit");
+      let latestManualRequest = null;
+      let manualDateEdited = false;
+
+      function manualActive() {
+        return latestManualRequest?.status === "queued" || latestManualRequest?.status === "running";
+      }
+
+      function updateManualControls() {
+        const disabled = manualActive() || manualForm.hasAttribute("aria-busy");
+        manualDay.disabled = disabled;
+        manualSubmit.disabled = disabled;
+      }
+
+      function paintManualRequest(request) {
+        latestManualRequest = request;
+        const states = {
+          queued: ["等待宝塔领取", "warn"],
+          running: ["宝塔同步中", ""],
+          success: ["同步完成", "good"],
+          failed: ["同步失败", "bad"],
+          paused: ["已暂停", "warn"],
+          cancelled: ["已取消", "quiet"],
+        };
+        const [label, tone] = states[request?.status] || ["暂无手动任务", "quiet"];
+        const badge = document.getElementById("manual-sync-status");
+        if (badge.textContent !== label) setBadge(badge, label, tone);
+        const detail = document.getElementById("manual-sync-detail");
+        const when = request?.updated_at || request?.requested_at;
+        const text = request
+          ? [request.day, when && `更新于 ${beijingTime(when)}`, request.error].filter(Boolean).join(" · ")
+          : "";
+        if (detail.textContent !== text) detail.textContent = text;
+        updateManualControls();
+      }
+
+      function paintManualSync(state, successes) {
+        const available = Object.hasOwn(state, "manual_sync");
+        const card = document.getElementById("manual-sync-card");
+        const showManualAnchor = card.hidden && available && location.hash === "#dashboard/manual";
+        card.hidden = !available;
+        if (showManualAnchor) requestAnimationFrame(() => card.scrollIntoView());
+        if (!available) return;
+        const today = daysAgo(0);
+        manualDay.max = today;
+        const retention = Number(state.retention_days);
+        manualDay.min = retention > 0 ? daysAgo(retention - 1) : "";
+        if (!manualDateEdited) {
+          const latestDay = successes.reduce(
+            (latest, run) =>
+              run.day > latest && run.day <= today && run.day >= manualDay.min ? run.day : latest,
+            "",
+          );
+          const yesterday = daysAgo(1);
+          manualDay.value = latestDay || (yesterday >= manualDay.min ? yesterday : manualDay.min);
+        }
+        paintManualRequest(state.manual_sync);
+      }
+
+      manualDay.addEventListener("input", () => (manualDateEdited = true));
+      manualForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (manualActive() || manualForm.hasAttribute("aria-busy")) return;
+        const day = manualDay.value;
+        manualDateEdited = true;
+        await handleForm(manualForm, "manual-sync-result", async () => {
+          updateManualControls();
+          const result = await api("manual-sync", "POST", { day });
+          paintManualRequest(result.manual_sync || { day, status: "queued" });
+          await refreshState();
+          feedback("manual-sync-result", "已提交手动同步任务。");
+        });
+        updateManualControls();
+      });
+
+      function paintState(state) {
+        document.getElementById("app-version").textContent = state.version || "—";
+        if (state.version) {
+          document.getElementById("sender-download-link").download = `bz-rsync-sender-${state.version}.zip`;
+        }
+        const sshPort = state.ssh_port || "—";
+        document.getElementById("live-ssh-port").textContent = sshPort;
+        document.getElementById("live-ports").textContent = `SSH ${sshPort} · Web ${state.web_port || "—"}`;
+        paintPaths(state.paths, state.split_layout);
+        paintSources(state.sources, state.paths);
+        const runs = state.runs
+          .slice()
+          .sort((a, b) => (Date.parse(b.started) || 0) - (Date.parse(a.started) || 0));
+        const active = runs.filter((run) => run.status === "transferring" || run.status === "verifying");
+        const historyStates = { success: "good", failed: "bad", paused: "paused", cancelled: "cancelled" };
+        const ended = runs.filter((run) => Object.hasOwn(historyStates, run.status));
+        const successes = ended.filter((run) => run.status === "success");
+        paintManualSync(state, successes);
+        reconcileRunAction(runs);
+        const sevenDays = daysAgo(6);
+        const latestByDay = new Map();
+        runs.forEach((run) => {
+          if (!latestByDay.has(run.day)) latestByDay.set(run.day, run);
+        });
+        const paused = [...latestByDay.values()].find((run) => run.status === "paused");
+        const today = daysAgo(0);
+        let todayRun = null;
+        let latestAt = 0;
+        for (const run of ended) {
+          const activityAt = runActivityAt(run);
+          if (activityAt > latestAt && beijingDay(activityAt) === today) {
+            todayRun = run;
+            latestAt = activityAt;
+          }
+        }
+        const scheduled = state.scheduled_confirmation;
+        const checkedAt = Date.parse(scheduled?.checked_at);
+        const confirmation =
+          !active.length &&
+          /^\d{4}-\d{2}-\d{2}$/.test(scheduled?.day) &&
+          checkedAt > latestAt &&
+          beijingDay(checkedAt) === today
+            ? scheduled
+            : null;
+        const dashboardRun = active[0] || (confirmation ? null : todayRun);
+        liveActivity = { dashboardRun, taskRun: active[0] || paused || dashboardRun, confirmation };
+        paintSelectedLiveActivity();
+        document.querySelector("[data-ongoing]").innerHTML = `${active.length}<span>批</span>`;
+        document.querySelector("[data-week-count]").innerHTML =
+          `${successes.filter((run) => beijingDay(run.ended) >= sevenDays).length}<span>批</span>`;
+        document.querySelector("[data-metric-speed]").textContent = active[0]?.speed || "—";
+        hasPublicKey = state.paired === true;
+        const pairing = hasPublicKey ? "已登记公钥" : "未配对";
+        document.querySelector("[data-pairing]").textContent = pairing;
+        setBadge(document.getElementById("live-pairing"), pairing, hasPublicKey ? "good" : "quiet");
+        updateRemoveKeyButton();
+        paintPairCode(state.pair_code, sshPort);
+        renderRetention(Number(state.retention_days) || 0, state.last_cleanup, state.cleanup_error);
+
+        const historyKey = JSON.stringify(ended);
+        if (historyKey !== previousHistory) {
+          previousHistory = historyKey;
+          const notes = {
+            success: "校验通过，批次已归档。",
+            failed: "同步失败。",
+            paused: "同步已暂停，暂存文件已保留。",
+            cancelled: "同步已取消，未完成的暂存文件已清理。",
+          };
+          records.splice(
+            0,
+            records.length,
+            ...ended.map((run) => ({
+              date: run.day || "—",
+              state: historyStates[run.status],
+              size: formatBytes(run.status === "success" ? run.total_bytes || run.bytes : run.bytes),
+              duration: formatDuration(run.started, run.ended),
+              time: beijingTime(run.ended),
+              endedDay: beijingDay(run.ended),
+              note: eventList(run).at(-1)?.line || notes[run.status],
+              events: eventList(run),
+            })),
+          );
+          renderRecords();
+        }
+        updateLiveTrend(successes);
+      }
+
+      async function refreshState() {
+        if (!loggedIn) return;
+        const revision = ++stateRevision;
+        try {
+          const state = await api("state");
+          if (revision !== stateRevision) return;
+          if (!Array.isArray(state.runs)) throw new Error("接收端返回了无法识别的同步状态。");
+          paintState(state);
+          feedback("api-notice");
+          void loadTelegramSettings();
+        } catch (error) {
+          if (revision !== stateRevision) return;
+          if (error.status === 401) {
+            signOut();
+            return;
+          }
+          feedback("api-notice", `同步状态读取失败，将自动重试。${error.message}`);
+        }
+      }
+
+      async function pollState() {
+        await refreshState();
+        setTimeout(pollState, 1600);
+      }
+
+      if (liveMode) {
+        document.querySelectorAll("[data-demo]").forEach((el) => (el.hidden = true));
+        document.querySelectorAll("[data-live]").forEach((el) => (el.hidden = false));
+        document.getElementById("bad-status").textContent = states.bad;
+        paintState({ runs: [], paired: false, retention_days: 0 });
+        loggedIn = true;
+        pollState();
+      } else {
+        let stored = 0;
+        try {
+          stored = Number(localStorage.getItem("bz-rsync-demo-days")) || 0;
+        } catch {}
+        renderRetention(stored);
+        if (location.hash === "#settings/sources") displayStep(1);
+        if (location.hash === "#login") showLogin(true);
+      }
+    </script>
+  </body>
+</html>

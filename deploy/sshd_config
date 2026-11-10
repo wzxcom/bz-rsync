@@ -1,0 +1,18 @@
+Port 2222
+HostKey /state/ssh_host_ed25519_key
+AuthorizedKeysFile none
+AuthorizedKeysCommand /usr/local/bin/bz-rsync authorized-keys %u %t %k
+AuthorizedKeysCommandUser bzsender
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+UsePAM no
+AllowUsers bzsender
+DisableForwarding yes
+PermitTTY no
+PermitUserRC no
+ClientAliveInterval 30
+ClientAliveCountMax 3

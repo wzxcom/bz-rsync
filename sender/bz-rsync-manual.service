@@ -1,0 +1,9 @@
+[Unit]
+Description=bz-rsync manual sync request pickup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/bz-rsync-sender/bz-rsync-send.py poll-manual --backup-completed
+TimeoutStartSec=6h

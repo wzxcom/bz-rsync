@@ -1,0 +1,29 @@
+services:
+  bz-rsync:
+    image: ${BZ_IMAGE:?set BZ_IMAGE to your bz-rsync image reference}
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      BZ_LAYOUT: ${BZ_LAYOUT:-dated}
+      BZ_BACKUP_DISPLAY_ROOT: ${BZ_BACKUP_PATH:?set BZ_BACKUP_PATH to your NAS backup directory}
+      BZ_STORAGE_UID: ${BZ_STORAGE_UID:-10001}
+      BZ_STORAGE_GID: ${BZ_STORAGE_GID:-10001}
+      BZ_PUBLIC_WEB_BIND: ${BZ_WEB_BIND:-127.0.0.1}
+      BZ_PUBLIC_WEB_PORT: ${BZ_WEB_PORT:-8080}
+      BZ_PUBLIC_SSH_PORT: ${BZ_SSH_PORT:-2222}
+      BZ_PUBLIC_SSH_BIND: ${BZ_SSH_BIND:-127.0.0.1}
+      BZ_PAIR_HOST: ${BZ_PAIR_HOST:-}
+    logging:
+      driver: local
+    ports:
+      - "${BZ_WEB_BIND:-127.0.0.1}:${BZ_WEB_PORT:-8080}:8080"
+      - "${BZ_SSH_BIND:-127.0.0.1}:${BZ_SSH_PORT:-2222}:2222"
+    volumes:
+      - bzstate:/state
+      - type: bind
+        source: ${BZ_BACKUP_PATH:?set BZ_BACKUP_PATH to your NAS backup directory}
+        target: /backups
+        bind:
+          create_host_path: false
+volumes:
+  bzstate:

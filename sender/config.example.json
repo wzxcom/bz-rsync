@@ -1,0 +1,21 @@
+{
+  "host": "nas.example.test",
+  "port": 2222,
+  "user": "bzsender",
+  "identity_file": "/opt/bz-rsync-sender/id_ed25519",
+  "known_hosts_file": "/opt/bz-rsync-sender/known_hosts",
+  "source_mode": "outbox",
+  "remote_sources": false,
+  "remote_website_roots": ["/www/backup/site"],
+  "remote_database_roots": ["/www/backup/database"],
+  "source_root": "/var/lib/bz-rsync/outbox",
+  "website_sources": [
+    {"directory": "/www/backup/site/example.com", "pattern": "*{date_compact}*.tar.gz"}
+  ],
+  "database_sources": [
+    {"directory": "/www/backup/database/mysql/crontab_backup/example_db", "pattern": "*{date}*.sql.gz"}
+  ],
+  "quiet_seconds": 60,
+  "direct_stage_root": "/opt/bz-rsync-sender/direct-batches",
+  "bandwidth_limit_kib": 0
+}
