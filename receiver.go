@@ -96,6 +96,7 @@ type receiver struct {
 	retention            retention
 	cleanup              chan struct{}
 	telegram             telegramSettings
+	telegramRevision     uint64
 	telegramClient       *http.Client
 	telegramQueue        chan telegramNotice
 	telegramPending      []telegramNotice

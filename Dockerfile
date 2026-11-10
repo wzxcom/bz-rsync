@@ -1,6 +1,6 @@
 FROM golang:1.27-bookworm AS build
 WORKDIR /src
-COPY VERSION go.mod main.go receiver.go verify.go retention.go auth.go layout.go split_verify.go paths.go sources.go manual.go pairing.go run_control.go telegram.go ./
+COPY VERSION go.mod main.go receiver.go verify.go retention.go auth.go layout.go split_verify.go paths.go sources.go manual.go pairing.go run_control.go telegram.go telegram_commands.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /bz-rsync .
 
 FROM debian:trixie-slim

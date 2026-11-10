@@ -44,7 +44,7 @@ func TestTelegramSettingsAndSavedTestMessage(t *testing.T) {
 		t.Fatalf("unsigned request status = %d", got.Code)
 	}
 	if got := request("GET", "/api/telegram", "", true); got.Code != 200 ||
-		got.Body.String() != "{\"enabled\":false,\"chat_id\":\"\",\"has_token\":false}\n" {
+		got.Body.String() != "{\"enabled\":false,\"chat_id\":\"\",\"has_token\":false,\"manual_sync\":false}\n" {
 		t.Fatalf("unexpected initial settings: %d %s", got.Code, got.Body)
 	}
 	if got := request("POST", "/api/telegram", `{"enabled":true,"chat_id":"42","token":""}`, true); got.Code != 400 {
@@ -53,12 +53,15 @@ func TestTelegramSettingsAndSavedTestMessage(t *testing.T) {
 	if got := request("POST", "/api/telegram", `{"enabled":false,"chat_id":"0","token":""}`, true); got.Code != 400 {
 		t.Fatalf("invalid chat ID accepted: %d", got.Code)
 	}
-	initial := `{"enabled":true,"chat_id":"42","token":"` + fixtureBotToken + `"}`
-	if got := request("POST", "/api/telegram", initial, true); got.Code != 200 {
+	initial := `{"enabled":true,"chat_id":"42","token":"` + fixtureBotToken + `","manual_sync":true}`
+	if got := request("POST", "/api/telegram", initial, true); got.Code != 200 || !r.telegram.ManualSync {
 		t.Fatalf("save failed: %d %s", got.Code, got.Body)
 	}
+	if got := request("POST", "/api/telegram", `{"enabled":true,"chat_id":"-100420","manual_sync":true}`, true); got.Code != 400 {
+		t.Fatalf("group chat accepted as a manual control: %d", got.Code)
+	}
 	if got := request("POST", "/api/telegram", `{"enabled":false,"chat_id":"-100420","token":""}`, true); got.Code != 200 ||
-		got.Body.String() != "{\"enabled\":false,\"chat_id\":\"-100420\",\"has_token\":true}\n" {
+		got.Body.String() != "{\"enabled\":false,\"chat_id\":\"-100420\",\"has_token\":true,\"manual_sync\":false}\n" {
 		t.Fatalf("unexpected replacement settings: %d %s", got.Code, got.Body)
 	}
 	info, err := os.Stat(filepath.Join(r.stateDir, telegramStateFile))

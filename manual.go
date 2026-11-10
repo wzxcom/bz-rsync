@@ -58,38 +58,37 @@ func (r *receiver) requestManual(w http.ResponseWriter, req *http.Request) {
 		jsonReply(w, 400, result{Error: "同步请求格式无效"})
 		return
 	}
-	if day, err := time.Parse(time.DateOnly, input.Day); err != nil || day.Format(time.DateOnly) != input.Day ||
-		input.Day > time.Now().In(beijing).Format(time.DateOnly) {
-		jsonReply(w, 400, result{Error: "请选择有效且不晚于今天的备份日期"})
-		return
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, err := os.Stat(filepath.Join(r.stateDir, "authorized_keys")); err != nil {
-		jsonReply(w, 409, result{Error: "请先配对宝塔发送端"})
-		return
+	status, reply := r.submitManualLocked(input.Day)
+	jsonReply(w, status, reply)
+}
+
+// submitManualLocked validates and submits a manual request with r.mu held.
+func (r *receiver) submitManualLocked(day string) (int, result) {
+	if parsed, err := time.Parse(time.DateOnly, day); err != nil || parsed.Format(time.DateOnly) != day ||
+		day > time.Now().In(beijing).Format(time.DateOnly) {
+		return 400, result{Error: "请选择有效且不晚于今天的备份日期"}
 	}
-	if r.retention.Days > 0 && input.Day < oldestDay(r.retention.Days) {
-		jsonReply(w, 409, result{Error: "该日期早于 NAS 保留范围"})
-		return
+	if _, err := os.Stat(filepath.Join(r.stateDir, "authorized_keys")); err != nil {
+		return 409, result{Error: "请先配对宝塔发送端"}
+	}
+	if r.retention.Days > 0 && day < oldestDay(r.retention.Days) {
+		return 409, result{Error: "该日期早于 NAS 保留范围"}
 	}
 	if pendingManual(r.manual) {
-		if r.manual.Day == input.Day {
-			jsonReply(w, 200, result{OK: true, Manual: r.manual})
-			return
+		if r.manual.Day == day {
+			return 200, result{OK: true, Manual: r.manual}
 		}
-		jsonReply(w, 409, result{Error: "已有手动同步请求，请完成后再提交"})
-		return
+		return 409, result{Error: "已有手动同步请求，请完成后再提交"}
 	}
-	if prior := r.latestDateRun(input.Day); prior != nil && prior.Status == "paused" {
-		jsonReply(w, 409, result{Error: "该日期有已暂停的任务，请使用继续按钮"})
-		return
+	if prior := r.latestDateRun(day); prior != nil && prior.Status == "paused" {
+		return 409, result{Error: "该日期有已暂停的任务，请使用继续按钮"}
 	}
-	if err := r.queueManual(input.Day, "", ""); err != nil {
-		jsonReply(w, 500, result{Error: "无法保存手动同步请求"})
-		return
+	if err := r.queueManual(day, "", ""); err != nil {
+		return 500, result{Error: "无法保存手动同步请求"}
 	}
-	jsonReply(w, 200, result{OK: true, Manual: r.manual})
+	return 200, result{OK: true, Manual: r.manual}
 }
 
 func (r *receiver) queueManual(day, resumeID, manifest string) error {

@@ -25,19 +25,22 @@ var telegramToken = regexp.MustCompile(`^[1-9][0-9]{0,19}:[A-Za-z0-9_-]{1,128}$`
 var telegramUsername = regexp.MustCompile(`^@[A-Za-z0-9_]{1,32}$`)
 
 type telegramSettings struct {
-	Enabled bool   `json:"enabled"`
-	ChatID  string `json:"chat_id"`
-	Token   string `json:"token"`
+	Enabled    bool   `json:"enabled"`
+	ChatID     string `json:"chat_id"`
+	Token      string `json:"token"`
+	ManualSync bool   `json:"manual_sync"`
 }
 
 type telegramPublic struct {
-	Enabled  bool   `json:"enabled"`
-	ChatID   string `json:"chat_id"`
-	HasToken bool   `json:"has_token"`
+	Enabled    bool   `json:"enabled"`
+	ChatID     string `json:"chat_id"`
+	HasToken   bool   `json:"has_token"`
+	ManualSync bool   `json:"manual_sync"`
 }
 
 func (settings telegramSettings) public() telegramPublic {
-	return telegramPublic{Enabled: settings.Enabled, ChatID: settings.ChatID, HasToken: settings.Token != ""}
+	return telegramPublic{Enabled: settings.Enabled, ChatID: settings.ChatID,
+		HasToken: settings.Token != "", ManualSync: settings.ManualSync}
 }
 
 func (settings *telegramSettings) validate() error {
@@ -54,6 +57,9 @@ func (settings *telegramSettings) validate() error {
 	}
 	if settings.Enabled && (settings.Token == "" || settings.ChatID == "") {
 		return errors.New("启用 Telegram 通知前请填写 Bot Token 和 Chat ID")
+	}
+	if settings.ManualSync && settings.commandChatID() == 0 {
+		return errors.New("启用 Telegram 手动同步须同时启用通知并填写正数私聊 Chat ID")
 	}
 	return nil
 }
@@ -121,7 +127,10 @@ func (r *receiver) setTelegram(w http.ResponseWriter, req *http.Request) {
 		jsonReply(w, http.StatusInternalServerError, result{Error: "无法保存 Telegram 设置"})
 		return
 	}
-	r.telegram = *input
+	if r.telegram != *input {
+		r.telegram = *input
+		r.telegramRevision++
+	}
 	jsonReply(w, http.StatusOK, r.telegram.public())
 }
 
@@ -144,6 +153,10 @@ func newTelegramClient() *http.Client {
 }
 
 func sendTelegram(ctx context.Context, client *http.Client, settings telegramSettings, text string) error {
+	return sendTelegramMessage(ctx, client, settings, text, nil)
+}
+
+func sendTelegramMessage(ctx context.Context, client *http.Client, settings telegramSettings, text string, keyboard *telegramReplyKeyboard) error {
 	if settings.Token == "" || settings.ChatID == "" {
 		return errors.New("请先保存 Bot Token 和 Chat ID")
 	}
@@ -151,15 +164,40 @@ func sendTelegram(ctx context.Context, client *http.Client, settings telegramSet
 	if id, err := strconv.ParseInt(settings.ChatID, 10, 64); err == nil {
 		chat = id
 	}
-	data, err := json.Marshal(struct {
-		ChatID    any    `json:"chat_id"`
-		Text      string `json:"text"`
-		ParseMode string `json:"parse_mode"`
-	}{chat, text, "HTML"})
-	if err != nil {
-		return errors.New("无法准备 Telegram 消息")
+	return callTelegram(ctx, client, settings.Token, "sendMessage", struct {
+		ChatID      any                    `json:"chat_id"`
+		Text        string                 `json:"text"`
+		ParseMode   string                 `json:"parse_mode"`
+		ReplyMarkup *telegramReplyKeyboard `json:"reply_markup,omitempty"`
+	}{chat, text, "HTML", keyboard}, nil)
+}
+
+type telegramAPIError struct {
+	code       int
+	retryAfter time.Duration
+}
+
+func (e telegramAPIError) Error() string {
+	switch e.code {
+	case http.StatusUnauthorized:
+		return "Telegram Bot Token 未通过验证"
+	case http.StatusBadRequest, http.StatusForbidden:
+		return "Telegram 无法处理此会话的请求，请检查 Chat ID 和 Bot 权限"
+	case http.StatusConflict:
+		return "Telegram Bot 已有 Webhook 或其他命令接收进程"
+	case http.StatusTooManyRequests:
+		return "Telegram 请求过于频繁，请稍后重试"
+	default:
+		return "Telegram 未确认请求成功"
 	}
-	endpoint := "https://api.telegram.org/bot" + settings.Token + "/sendMessage"
+}
+
+func callTelegram(ctx context.Context, client *http.Client, token, method string, input, output any) error {
+	data, err := json.Marshal(input)
+	if err != nil {
+		return errors.New("无法准备 Telegram 请求")
+	}
+	endpoint := "https://api.telegram.org/bot" + token + "/" + method
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(data))
 	if err != nil {
 		return errors.New("无法准备 Telegram 请求")
@@ -171,22 +209,26 @@ func sendTelegram(ctx context.Context, client *http.Client, settings telegramSet
 		return errors.New("无法连接 Telegram，请检查 NAS 网络后重试")
 	}
 	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusUnauthorized:
-		return errors.New("Telegram Bot Token 未通过验证")
-	case http.StatusBadRequest, http.StatusForbidden:
-		return errors.New("Telegram 无法向此会话发送消息，请检查 Chat ID 和 Bot 权限")
-	case http.StatusTooManyRequests:
-		return errors.New("Telegram 请求过于频繁，请稍后重试")
-	case http.StatusOK:
-		var result struct {
-			OK bool `json:"ok"`
-		}
-		if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&result); err == nil && result.OK {
-			return nil
-		}
+	var response struct {
+		OK        bool            `json:"ok"`
+		Result    json.RawMessage `json:"result"`
+		ErrorCode int             `json:"error_code"`
+		Params    struct {
+			RetryAfter int `json:"retry_after"`
+		} `json:"parameters"`
 	}
-	return errors.New("Telegram 未确认消息发送成功")
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&response); err != nil ||
+		resp.StatusCode != http.StatusOK || !response.OK {
+		code := resp.StatusCode
+		if code == http.StatusOK {
+			code = response.ErrorCode
+		}
+		return telegramAPIError{code, time.Duration(response.Params.RetryAfter) * time.Second}
+	}
+	if output != nil && json.Unmarshal(response.Result, output) != nil {
+		return errors.New("Telegram 返回的数据无效")
+	}
+	return nil
 }
 
 func (r *receiver) testTelegram(w http.ResponseWriter, req *http.Request) {
@@ -355,7 +397,7 @@ func (r *receiver) telegramWorker() {
 		r.mu.Lock()
 		current := r.telegram
 		r.mu.Unlock()
-		if notice.settings != current {
+		if !current.Enabled || notice.settings.ChatID != current.ChatID || notice.settings.Token != current.Token {
 			continue
 		}
 		if err := sendTelegram(context.Background(), r.telegramClient, notice.settings, r.formatTelegramNotice(notice)); err != nil {

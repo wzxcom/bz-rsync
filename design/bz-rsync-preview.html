@@ -2033,7 +2033,7 @@
             <div class="card-body">
               <form class="form-stack" id="telegram-form" autocomplete="off">
                 <p class="notice">
-                  先在 Telegram 启动 Bot，或将 Bot 添加到接收消息的群组，然后填写该会话的数字 Chat ID。
+                  先在 Telegram 启动 Bot，或将 Bot 添加到接收消息的群组或频道，然后填写接收会话的 Chat ID。
                 </p>
                 <fieldset class="form-stack source-fields" id="telegram-fields" disabled>
                   <label class="field-check">
@@ -2059,12 +2059,21 @@
                         autocomplete="off"
                         spellcheck="false"
                       />
-                      <small>使用完整数字 ID，群组 ID 可能以负号开头。</small>
+                      <small>使用完整数字 ID。群组和频道的数字 ID 可带负号，公开频道也可填写 @用户名。</small>
                     </label>
+                  </div>
+                  <div class="form-stack" id="telegram-manual-settings" hidden>
+                    <label class="field-check">
+                      <input type="checkbox" id="telegram-manual-sync" aria-describedby="telegram-manual-help" />
+                      允许在 Telegram 手动同步
+                    </label>
+                    <p class="muted" id="telegram-manual-help">
+                      需要启用通知，并填写正数私聊 Chat ID。保存后在 Bot 私聊中点「开始」或发送 /start，即可使用「手动同步」按钮提交北京时间当天的批次。
+                    </p>
                   </div>
                 </fieldset>
                 <div class="toolbar">
-                  <button class="btn primary" id="telegram-save" type="submit" disabled>保存通知设置</button>
+                  <button class="btn primary" id="telegram-save" type="submit" disabled>保存 Telegram 设置</button>
                   <button class="btn" id="telegram-test" type="button" disabled>发送测试消息</button>
                 </div>
                 <p class="muted">测试使用已保存的 Token 和 Chat ID。通知关闭时仍可测试。</p>
@@ -2610,8 +2619,11 @@
       const telegramEnabled = document.getElementById("telegram-enabled");
       const telegramToken = document.getElementById("telegram-token");
       const telegramChat = document.getElementById("telegram-chat-id");
+      const telegramManualSettings = document.getElementById("telegram-manual-settings");
+      const telegramManualSync = document.getElementById("telegram-manual-sync");
       const telegramSave = document.getElementById("telegram-save");
       const telegramTest = document.getElementById("telegram-test");
+      const telegramPrivateChatID = /^0*[1-9][0-9]*$/;
       let savedTelegram = null;
       let telegramLoading = false;
       let telegramUnavailable = false;
@@ -2621,6 +2633,10 @@
       function updateTelegramControls() {
         const busy = telegramForm.hasAttribute("aria-busy");
         telegramFields.disabled = !savedTelegram || busy;
+        const privateChat = telegramPrivateChatID.test(telegramChat.value.trim());
+        telegramManualSync.disabled =
+          busy || telegramManualSettings.hidden ||
+          (!telegramManualSync.checked && !(telegramEnabled.checked && privateChat));
         telegramSave.disabled = !savedTelegram || busy;
         telegramTest.disabled = busy || !savedTelegram?.has_token || !savedTelegram.chat_id;
       }
@@ -2632,6 +2648,7 @@
         telegramUnavailable = false;
         telegramRetryAt = 0;
         telegramForm.reset();
+        telegramManualSettings.hidden = true;
         telegramCard.hidden = !liveMode;
         setBadge(document.getElementById("telegram-badge"), "读取中", "quiet");
         feedback("telegram-result");
@@ -2642,13 +2659,21 @@
         if (
           typeof data.enabled !== "boolean" ||
           typeof data.chat_id !== "string" ||
-          typeof data.has_token !== "boolean"
+          typeof data.has_token !== "boolean" ||
+          (data.manual_sync !== undefined && typeof data.manual_sync !== "boolean")
         ) {
           throw new Error("接收端返回了无法识别的 Telegram 设置。");
         }
-        savedTelegram = { enabled: data.enabled, chat_id: data.chat_id, has_token: data.has_token };
+        savedTelegram = {
+          enabled: data.enabled,
+          chat_id: data.chat_id,
+          has_token: data.has_token,
+          manual_sync: data.manual_sync,
+        };
         telegramEnabled.checked = data.enabled;
         telegramChat.value = data.chat_id;
+        telegramManualSettings.hidden = data.manual_sync === undefined;
+        telegramManualSync.checked = data.manual_sync === true;
         telegramToken.value = "";
         document.getElementById("telegram-token-note").textContent = data.has_token
           ? "已保存 Bot Token。留空会保留它，输入新 Token 可替换。"
@@ -2685,6 +2710,13 @@
         }
       }
 
+      telegramEnabled.addEventListener("change", () => {
+        if (!telegramEnabled.checked) telegramManualSync.checked = false;
+        updateTelegramControls();
+      });
+      telegramChat.addEventListener("input", updateTelegramControls);
+      telegramManualSync.addEventListener("change", updateTelegramControls);
+
       telegramForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (telegramSave.disabled) return;
@@ -2694,16 +2726,19 @@
           chat_id: telegramChat.value.trim(),
           token: telegramToken.value.trim(),
         };
+        if (savedTelegram.manual_sync !== undefined) input.manual_sync = telegramManualSync.checked;
         await handleForm(telegramForm, "telegram-result", async () => {
-          if ((input.enabled || input.chat_id) && !/^-?[0-9]+$/.test(input.chat_id))
-            throw new Error("请填写数字 Chat ID。群组 ID 可带负号。");
+          if ((input.enabled || input.chat_id) && !/^(?:-?0*[1-9][0-9]*|@[A-Za-z0-9_]{1,32})$/.test(input.chat_id))
+            throw new Error("请填写非零数字 Chat ID 或公开频道的 @用户名。");
+          if (input.manual_sync && (!input.enabled || !telegramPrivateChatID.test(input.chat_id)))
+            throw new Error("启用 Telegram 手动同步需要启用通知并填写正数私聊 Chat ID。");
           if (input.enabled && !input.token && !savedTelegram.has_token)
             throw new Error("启用通知前，请填写 Bot Token。");
           updateTelegramControls();
           const settings = await api("telegram", "POST", input);
           if (generation !== telegramGeneration) return;
           paintTelegramSettings(settings);
-          feedback("telegram-result", "Telegram 通知设置已保存。");
+          feedback("telegram-result", "Telegram 设置已保存。");
         });
         updateTelegramControls();
       });

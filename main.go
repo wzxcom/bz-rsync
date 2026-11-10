@@ -130,6 +130,9 @@ func serve() error {
 		}
 	}
 	printStartup(webListener, sshEnabled)
+	telegramContext, stopTelegram := context.WithCancel(context.Background())
+	defer stopTelegram()
+	go r.telegramCommandWorker(telegramContext)
 	return server.Serve(webListener)
 }
 

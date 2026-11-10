@@ -15,6 +15,7 @@
 !pairing.go
 !run_control.go
 !telegram.go
+!telegram_commands.go
 !deploy/
 !deploy/entrypoint.sh
 !deploy/sshd_config
